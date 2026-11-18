@@ -194,6 +194,7 @@
       if (isFav(r.id)) w += 1.5;
       if (r.tags.indexOf("bp") >= 0) w += 0.6;
       if (r.na === "watch") w *= 0.7;
+      if (r.tags.indexOf("treat") >= 0) w *= 0.35;
       w = w / (1 + 3 * (used[r.id] || 0));
       if (k === "side" && r.id === "rice-and-peas" && dinnerId && RICE_PAIR.indexOf(dinnerId) >= 0) w *= 6;
       return w;
@@ -243,7 +244,7 @@
 
   /* ---------- UI bits ---------- */
   function tagPills(r, limit) {
-    var order = ["bp", "fish", "plant", "fiber", "prep", "desalt", "ackee", "shell"];
+    var order = ["bp", "fish", "plant", "fiber", "drink", "treat", "prep", "desalt", "ackee", "shell"];
     var t = order.filter(function (x) { return r.tags.indexOf(x) >= 0; });
     if (limit) t = t.slice(0, limit);
     return t.map(function (x) { return '<span class="pill ' + x + '">' + esc(D.TAGS[x]) + "</span>"; }).join("");
@@ -328,7 +329,8 @@
     { k: "d", label: "Dinner", ico: "🌙", test: function (r) { return r.m.indexOf("d") >= 0 && !isSoup(r); } },
     { k: "side", label: "Sides", ico: "🥗", test: function (r) { return r.m.indexOf("side") >= 0; } },
     { k: "soup", label: "Soups", ico: "🍲", test: isSoup },
-    { k: "s", label: "Snacks & baked", ico: "🍌", test: function (r) { return r.m.indexOf("s") >= 0; } }
+    { k: "s", label: "Snacks & baked", ico: "🍌", test: function (r) { return r.m.indexOf("s") >= 0 && r.tags.indexOf("drink") < 0; } },
+    { k: "drink", label: "Drinks", ico: "🍹", test: function (r) { return r.tags.indexOf("drink") >= 0; } }
   ];
   function isSoup(r) { return /soup|fish tea|callaloo \(no crab\)/i.test(r.n); }
   function allFiltered() {
@@ -411,7 +413,7 @@
       "</div>" +
       '<div class="card"><div class="sodium"><div style="font-size:1.6rem">🧂</div><div><b>' + esc(sodiumLabel(r)) + '</b><div class="meter ' + r.na + '"><i></i><i></i><i></i></div><p style="margin-top:8px">' + esc(r.tip) + '</p><p class="help">The sodium level is this app\'s guide based on the ingredients, not a lab measurement. Check package labels for exact numbers.</p></div></div>' +
       (r.tags.indexOf("desalt") >= 0 ? '<div class="note gold"><b>Desalting saltfish:</b> ' + esc(D.DESALT) + "</div>" : "") +
-      (r.note ? '<div class="note warn">' + esc(r.note) + " " + src("FDA", LINKS.fdaAckee) + "</div>" : "") + "</div>" +
+      (r.note ? '<div class="note warn">' + esc(r.note) + (r.nsrc ? " " + src(r.nsrc[0], r.nsrc[1]) : r.tags.indexOf("ackee") >= 0 ? " " + src("FDA", LINKS.fdaAckee) : "") + "</div>" : "") + "</div>" +
       '<div class="grid g2 mt"><div class="card"><div class="row between"><h2>Ingredients</h2>' + (anyChecked ? '<button class="btn small no-print" data-act="clearCook" data-id="' + r.id + '">Clear checks</button>' : "") + '</div><p class="help no-print">Tap each one as you get it ready.</p><ul class="checklist">' +
       ings.map(function (x, i) {
         var c = getFlag("cookChecks", r.id, String(i));

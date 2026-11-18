@@ -75,6 +75,8 @@ input[type=checkbox]{width:22px;height:22px;min-height:0;accent-color:var(--acce
 .pill.plant{background:#e3f3d9;color:#3b7a16} [data-theme="dark"] .pill.plant{background:#1d3315;color:#9fdc78}
 .pill.prep{background:#ece6f7;color:#5b3fa0} [data-theme="dark"] .pill.prep{background:#2a2142;color:#c3b0f2}
 .pill.desalt,.pill.ackee{background:var(--warn-bg);color:var(--warn)}
+.pill.treat{background:#fde7ef;color:#a3245a} [data-theme="dark"] .pill.treat{background:#3d1a2a;color:#f39cc0}
+.pill.drink{background:#e2f3f7;color:#18708a} [data-theme="dark"] .pill.drink{background:#12313a;color:#7fd3e8}
 .pill.shell{background:var(--bad-bg);color:var(--bad)}
 .pill.cuisine{background:#111;color:var(--gold)}
 .note{border-left:4px solid var(--info);background:var(--info-bg);padding:10px 14px;border-radius:8px;margin:10px 0}
