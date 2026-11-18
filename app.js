@@ -37,6 +37,7 @@
   var NAV = [
     { id: "menu", label: "Menu maker", ico: "🍽️", group: "Plan" },
     { id: "week", label: "Weekly menu", ico: "📅", group: "Plan" },
+    { id: "saved", label: "Saved menus", ico: "🗂️", group: "Plan" },
     { id: "shopping", label: "Shopping list", ico: "🛒", group: "Plan" },
     { id: "recipes", label: "Recipes", ico: "📖", group: "Cook" },
     { id: "foods", label: "My foods", ico: "💚", group: "Cook" },
@@ -44,7 +45,7 @@
     { id: "sync", label: "Sync", ico: "⟳", group: "More" },
     { id: "about", label: "About", ico: "ℹ️", group: "More" }
   ];
-  var TABS = ["menu", "week", "recipes", "shopping"];
+  var TABS = ["menu", "week", "saved", "recipes", "shopping"];
 
   /* ---------- helpers ---------- */
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -273,10 +274,12 @@
     var ti = todayIdx(), days = weekDays(), date = days[ti];
     var sab = date.getDay() === 6;
     return '<div class="hero"><p class="kicker">' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + '</p><h1>Today\'s healthy Jamaican menu</h1><p>Heart-healthy, lower in salt, and never any pork, tripe or cow foot. Tap a dish for the recipe, 🔓 to lock it, or ⇄ to swap it.</p>' +
-      '<div class="row mt"><button class="btn gold" data-act="shuffleDay" data-d="' + ti + '">🔀 Shuffle today</button><button class="btn" data-act="shuffleWeek" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">🔀 Shuffle whole week</button><a class="btn" href="#/week" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">📅 See the week</a></div></div>' +
+      '<div class="row mt"><button class="btn gold" data-act="shuffleDay" data-d="' + ti + '">🔀 Shuffle today</button><button class="btn" data-act="shuffleWeek" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">🔀 Shuffle whole week</button><a class="btn" href="#/week" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">📅 See the week</a></div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn save-later" data-act="saveLaterDay">+ Save for later</button><button class="btn save-later" data-act="addMenu">+ Add a menu</button></div></div>' +
       (sab ? '<div class="note gold mt">Happy Sabbath. Today\'s dishes are ones you could cook on Friday before sunset.</div>' : (date.getDay() === 5 && S("sabbath") ? '<div class="note gold mt">Friday: cook tonight\'s dinner and tomorrow\'s Sabbath meals before sunset. <a href="#/week">See Saturday\'s menu</a>.</div>' : "")) +
       '<div class="slots mt">' + SLOTS.map(function (s) { return slotCard(ti, s, date); }).join("") + "</div>" +
       '<div class="note mt">Daily sodium goal: the American Heart Association recommends no more than 2,300 mg a day, with an ideal of no more than 1,500 mg for most adults. ' + src("AHA", LINKS.aha) + " · <a href=\"#/health\">More heart-health tips</a></div>" +
+      comingUpCard() +
       '<div class="mt">' + optionsCard() + "</div>" + disclaimer();
   }
   function viewWeek() {
@@ -284,6 +287,7 @@
     var days = weekDays(), ti = todayIdx();
     return '<div class="page-head row between"><div><p class="kicker">Week of ' + esc(dateLabel(days[0])) + " – " + esc(dateLabel(days[6])) + '</p><h1>Weekly menu</h1><p class="lead">Seven days of breakfast, lunch, dinner, a side and a snack. Locked meals (🔒) stay put when you shuffle.</p></div>' +
       '<div class="row no-print"><button class="btn primary" data-act="shuffleWeek">🔀 Shuffle week</button><a class="btn" href="#/shopping">🛒 Shopping list</a><button class="btn" data-act="print">🖨 Print</button><button class="btn" data-act="newWeek">New week</button></div></div>' +
+      '<div class="row no-print" style="margin:-4px 0 14px"><button class="btn gold" data-act="saveLaterWeek">+ Save for later</button><button class="btn" data-act="addMenu">+ Add a menu</button><a class="btn ghost" href="#/saved">🗂️ Saved menus (' + state.savedMenus.length + ')</a></div>' +
       '<div class="week">' + days.map(function (date, d) {
         var sab = date.getDay() === 6;
         return '<div class="day' + (d === ti ? " today" : "") + (sab && d !== ti ? " sabbath" : "") + '"><div class="dh"><b>' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + (d === ti ? " · Today" : "") + '</b><button class="btn small ghost no-print" data-act="shuffleDay" data-d="' + d + '" title="Shuffle this day" style="color:inherit;border-color:currentColor">🔀</button></div>' +
@@ -354,12 +358,21 @@
       }).join("") + "</ul>" + (scale !== 1 ? '<p class="help">Amounts are scaled from the original ' + r.sv + " servings. Spices may not need to scale exactly — taste as you go.</p>" : "") + "</div>" +
       '<div class="card"><h2>Steps</h2><ol class="steps">' + r.st.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ol></div></div>" + disclaimer();
   }
-  function shoppingItems() {
+  /* shopping source: the current week, or a saved menu (#/saved/<id>/shop) */
+  function shopSource() {
+    var rp = routeParts();
+    if (rp[0] === "saved" && rp[1] && rp[2] === "shop") {
+      var m = find("savedMenus", rp[1]);
+      if (m) return { key: "menu-" + m.id, ids: menuRecipeIds(m), kicker: esc(m.name) + (m.date ? " · " + esc(menuDateLabel(m)) : ""), lead: "Everything for your saved menu \u201c" + esc(m.name) + "\u201d", title: m.name, back: "#/saved/" + m.id, span: m.kind === "week" ? "the week" : "the day" };
+    }
     ensureWeek();
-    var serv = S("servings"), map = {};
-    state.plan.forEach(function (p) {
-      var r = recipeById(p.recipeId); if (!r || blockReason(r)) return;
-      var d = +p.id.split("-")[0]; if (!(d >= 0 && d < 7)) return;
+    var ws = weekStart();
+    return { key: ws, ids: state.plan.filter(function (p) { var d = +p.id.split("-")[0]; return d >= 0 && d < 7; }).map(function (p) { return p.recipeId; }), kicker: "Week of " + esc(dateLabel(parseYmd(ws))), lead: "Everything for this week's menu", title: "week of " + dateLabel(parseYmd(ws)), back: "", span: "the week" };
+  }
+  function shoppingItems(src0) {
+    var srcx = src0 || shopSource(), serv = S("servings"), map = {};
+    srcx.ids.forEach(function (rid) {
+      var r = recipeById(rid); if (!r || blockReason(r)) return;
       var scale = serv / r.sv;
       r.ing.map(parseIng).forEach(function (x) {
         var base = x.item.replace(/,.*$/, "").trim();
@@ -373,7 +386,7 @@
   }
   function itemLine(it) { return (it.hasQ ? fmtQty(it.q) + (it.u ? " " + unitFor(it.u, it.q) : "") + " " : "") + it.item; }
   function shoppingText() {
-    var items = shoppingItems(), ws = weekStart(), out = ["Jamaican Menus — shopping list (week of " + dateLabel(parseYmd(ws)) + ", " + S("servings") + " servings)"];
+    var sx = shopSource(), items = shoppingItems(sx), ws = sx.key, out = ["Jamaican Menus — shopping list (" + sx.title + ", " + S("servings") + " servings)"];
     Object.keys(D.SECTIONS).forEach(function (sec) {
       var g = items.filter(function (x) { return x.sec === sec && !getFlag("shopChecks", ws, x.key); });
       if (!g.length) return;
@@ -383,12 +396,14 @@
     return out.join("\n");
   }
   function viewShopping() {
-    var items = shoppingItems(), ws = weekStart();
+    var sx = shopSource(), items = shoppingItems(sx), ws = sx.key;
     var done = items.filter(function (x) { return getFlag("shopChecks", ws, x.key); }).length;
-    var h = '<div class="page-head row between"><div><p class="kicker">Week of ' + esc(dateLabel(parseYmd(ws))) + " · " + S("servings") + ' servings per meal</p><h1>Shopping list</h1><p class="lead">Everything for this week\'s menu, grouped by store section. Check items off as you shop.</p></div>' +
+    var h = (sx.back ? '<div class="no-print" style="margin-bottom:10px"><a class="btn small" href="' + sx.back + '">← Back to menu</a></div>' : "") +
+      '<div class="page-head row between"><div><p class="kicker">' + sx.kicker + " · " + S("servings") + ' servings per meal</p><h1>Shopping list</h1><p class="lead">' + sx.lead + ', grouped by store section. Check items off as you shop.</p></div>' +
       '<div class="row no-print"><button class="btn primary" data-act="shareList">📤 Share</button><button class="btn" data-act="copyList">📋 Copy</button><button class="btn" data-act="doPrint">🖨 Print</button></div></div>' +
-      '<div class="card no-print"><div class="row between"><b>' + done + " of " + items.length + ' items checked</b><div class="row"><label class="row small"><input type="checkbox" data-act2="hideChecked"' + (ui.hideChecked ? " checked" : "") + '> Hide checked</label>' + (done ? '<button class="btn small" data-act="clearShop">Uncheck all</button>' : "") + "</div></div>" +
-      '<p class="help">Amounts are added up across the week and scaled to ' + S("servings") + ' servings. Spices and oil: check your cupboard first. Pick "no-salt-added" cans where you can.</p></div>';
+      (items.length ? "" : '<div class="note">This menu has no recipes yet. Add some, then come back.</div>') +
+      '<div class="card no-print"><div class="row between"><b id="shopCount">' + done + " of " + items.length + ' items checked</b><div class="row"><label class="row small"><input type="checkbox" data-act2="hideChecked"' + (ui.hideChecked ? " checked" : "") + '> Hide checked</label>' + (done ? '<button class="btn small" data-act="clearShop">Uncheck all</button>' : "") + "</div></div>" +
+      '<p class="help">Amounts are added up across ' + sx.span + ' and scaled to ' + S("servings") + ' servings. Spices and oil: check your cupboard first. Pick "no-salt-added" cans where you can.</p></div>';
     Object.keys(D.SECTIONS).forEach(function (sec) {
       var g = items.filter(function (x) { return x.sec === sec; }).sort(function (a, b) { return a.item.localeCompare(b.item); });
       if (ui.hideChecked) g = g.filter(function (x) { return !getFlag("shopChecks", ws, x.key); });
@@ -400,6 +415,156 @@
     });
     h += '<div class="card"><h2>Where to find Jamaican ingredients near Frisco</h2><p><b>Afribbean Market</b> — African and Caribbean grocery<br>901 E Plano Pkwy, Suite 101, Plano, TX 75074 · <a href="tel:+19725091825">972-509-1825</a> · ' + src("store listing", LINKS.afribbean) + '</p><p class="help">Address and phone matched on two public listings (Nov 2026). Stock wasn\'t checked — call ahead for ackee, saltfish, callaloo, breadfruit or sprat. If you buy canned ackee, FDA keeps a "Green List" of approved ackee processors: ' + src("FDA Import Alert 21-11", LINKS.fdaAlert) + ".</p></div>";
     return h + disclaimer();
+  }
+
+  /* ---------- saved / planned menus ---------- */
+  function dayCount(m) { return m.kind === "week" ? 7 : 1; }
+  function menuRecipeIds(m) { var out = []; for (var d = 0; d < dayCount(m); d++) SLOTS.forEach(function (s) { var id = (m.slots || {})[d + "-" + s.k]; if (id) out.push(id); }); return out; }
+  function menuDayDate(m, d) { return m.date ? addDays(parseYmd(m.date), d) : null; }
+  function menuDateLabel(m) {
+    if (!m.date) return "No date";
+    var a = parseYmd(m.date);
+    if (m.kind === "week") return "Week of " + dateLabel(a) + " – " + dateLabel(addDays(a, 6));
+    return dayName(a, true) + ", " + a.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  function menuGroups() {
+    var t = ymd(todayDate()), up = [], none = [], past = [];
+    state.savedMenus.forEach(function (m) {
+      if (!m.date) none.push(m);
+      else { var end = ymd(addDays(parseYmd(m.date), dayCount(m) - 1)); if (end >= t) up.push(m); else past.push(m); }
+    });
+    up.sort(function (a, b) { return a.date.localeCompare(b.date); });
+    past.sort(function (a, b) { return b.date.localeCompare(a.date); });
+    none.sort(function (a, b) { return String(b.updatedAt).localeCompare(String(a.updatedAt)); });
+    return { up: up, none: none, past: past };
+  }
+  function comingUp() {
+    var t = todayDate(), t0 = ymd(t), t7 = ymd(addDays(t, 7));
+    return state.savedMenus.filter(function (m) {
+      if (!m.date) return false;
+      var end = ymd(addDays(parseYmd(m.date), dayCount(m) - 1));
+      return m.date <= t7 && end >= t0;
+    }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+  }
+  function snapshotSlots(kind) {
+    var slots = {}, ti = todayIdx();
+    if (kind === "day") SLOTS.forEach(function (s) { var p = planItem(ti, s.k); if (p && p.recipeId) slots["0-" + s.k] = p.recipeId; });
+    else state.plan.forEach(function (p) { var d = +p.id.split("-")[0]; if (d >= 0 && d < 7 && p.recipeId) slots[p.id] = p.recipeId; });
+    return slots;
+  }
+  function openModal(html) { var m = document.getElementById("modal"); m.innerHTML = '<div class="modal-box" role="dialog" aria-modal="true">' + html + "</div>"; m.hidden = false; var f = m.querySelector("input,textarea"); if (f) setTimeout(function () { f.focus(); }, 30); }
+  function closeModal() { var m = document.getElementById("modal"); m.hidden = true; m.innerHTML = ""; }
+  function saveLaterDialog(kind) {
+    ensureWeek();
+    var days = weekDays(), ti = todayIdx();
+    var defName = kind === "day" ? "Menu from " + dayName(days[ti]) + ", " + dateLabel(days[ti]) : "Week of " + dateLabel(days[0]);
+    openModal('<h2>+ Save for later</h2><p class="help">Saves a copy of ' + (kind === "day" ? "today's" : "this week's") + ' menu. Shuffling later won\'t change the saved copy.</p>' +
+      '<form data-modal="saveLater" data-kind="' + kind + '"><div class="field"><span>Name</span><input name="name" required maxlength="80" value="' + esc(defName) + '"></div>' +
+      '<div class="field"><span>' + (kind === "day" ? "Planned date (optional)" : "Week start date (optional)") + '</span><input type="date" name="date"></div>' +
+      '<div class="field"><span>Notes (optional)</span><textarea name="notes" maxlength="1000" placeholder="e.g. for the family visit, buy snapper on Friday"></textarea></div>' +
+      '<div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="closeModal">Cancel</button><button class="btn primary">Save menu</button></div></form>');
+  }
+  function addMenuDialog() {
+    var tm = ymd(addDays(todayDate(), 1));
+    openModal('<h2>+ Add a menu</h2><p class="help">Make your own menu and plan it for a future date. You pick the recipes on the next screen.</p>' +
+      '<form data-modal="addMenu"><div class="field"><span>Name</span><input name="name" required maxlength="80" placeholder="e.g. Sunday family dinner"></div>' +
+      '<div class="field"><span>Type</span><select name="kind"><option value="day">One day</option><option value="week">A whole week (7 days)</option></select></div>' +
+      '<div class="field"><span>Planned date or week start (optional)</span><input type="date" name="date" value="' + tm + '"></div>' +
+      '<div class="field"><span>Start with</span><select name="start"><option value="blank">A blank menu — I\'ll pick every recipe</option><option value="suggest">Suggestions I can change</option></select></div>' +
+      '<div class="field"><span>Notes (optional)</span><textarea name="notes" maxlength="1000"></textarea></div>' +
+      '<div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="closeModal">Cancel</button><button class="btn primary">Create menu</button></div></form>');
+  }
+  function suggestFill(m, onlyEmpty) {
+    var used = {}, slots = m.slots || {};
+    Object.keys(slots).forEach(function (k) { used[slots[k]] = (used[slots[k]] || 0) + 1; });
+    for (var d = 0; d < dayCount(m); d++) {
+      var dayIds = SLOTS.map(function (s) { return slots[d + "-" + s.k]; }).filter(Boolean);
+      SLOTS.forEach(function (s) {
+        var k = d + "-" + s.k; if (onlyEmpty && slots[k] && recipeById(slots[k]) && !blockReason(recipeById(slots[k]))) return;
+        var r = pickRecipe(s.k, menuDayDate(m, d), used, null, dayIds); if (!r) return;
+        slots[k] = r.id; used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id);
+      });
+    }
+    m.slots = slots;
+  }
+  function useMenu(m) {
+    ensureWeek();
+    var days = weekDays(), ti = todayIdx(), target = ti;
+    if (m.kind === "day") {
+      if (m.date) { var idx = Math.round((parseYmd(m.date) - parseYmd(weekStart())) / 86400000); if (idx >= 0 && idx < 7) target = idx; }
+      if (!confirm("Use \u201c" + m.name + "\u201d as the menu for " + dayName(days[target]) + ", " + dateLabel(days[target]) + "? It replaces that day's meals (your saved copy stays).")) return false;
+      SLOTS.forEach(function (s) { var id = m.slots["0-" + s.k]; var p = planItem(target, s.k); if (id) upsert("plan", { id: slotId(target, s.k), recipeId: id, locked: true, createdAt: p && p.createdAt }); });
+    } else {
+      if (!confirm("Use \u201c" + m.name + "\u201d as this week's menu? It replaces this week's meals (your saved copy stays).")) return false;
+      for (var d = 0; d < 7; d++) SLOTS.forEach(function (s) { var id = m.slots[d + "-" + s.k]; var p = planItem(d, s.k); if (id) upsert("plan", { id: slotId(d, s.k), recipeId: id, locked: true, createdAt: p && p.createdAt }); });
+    }
+    save(); toast("Now using \u201c" + m.name + "\u201d — meals are locked so Shuffle keeps them");
+    return true;
+  }
+  function menuCard(m) {
+    var ids = menuRecipeIds(m), bad = ids.filter(function (id) { var r = recipeById(id); return !r || blockReason(r); }).length;
+    var first = ids.slice(0, 3).map(function (id) { var r = recipeById(id); return r ? r.e + " " + esc(r.n) : ""; }).filter(Boolean).join(" · ");
+    return '<div class="card menu-card"><div class="row between"><div style="min-width:0;flex:1"><p class="kicker">' + esc(menuDateLabel(m)) + " · " + (m.kind === "week" ? "Week" : "Day") + '</p><h2 style="margin:2px 0 4px"><a href="#/saved/' + m.id + '" style="color:inherit;text-decoration:none">' + esc(m.name) + "</a></h2>" +
+      '<p class="small muted" style="margin:0">' + ids.length + " of " + dayCount(m) * SLOTS.length + " meals picked" + (bad ? ' · <span style="color:var(--bad)">⚠ ' + bad + " need a swap</span>" : "") + "</p>" +
+      (first ? '<p class="small" style="margin:4px 0 0">' + first + (ids.length > 3 ? " …" : "") + "</p>" : "") + (m.notes ? '<p class="help" style="margin:4px 0 0">📝 ' + esc(m.notes.length > 120 ? m.notes.slice(0, 120) + "…" : m.notes) + "</p>" : "") + "</div></div>" +
+      '<div class="row mt no-print"><a class="btn small primary" href="#/saved/' + m.id + '">Open / edit</a><button class="btn small gold" data-act="useMenu" data-id="' + m.id + '">✔ Use this menu</button><a class="btn small" href="#/saved/' + m.id + '/shop">🛒 Shopping list</a><a class="btn small" href="#/saved/' + m.id + '/print">🖨 Print</a><button class="btn small" data-act="dupMenu" data-id="' + m.id + '">⧉ Duplicate</button><button class="btn small danger" data-act="delMenu" data-id="' + m.id + '">Delete</button></div></div>';
+  }
+  function viewSaved() {
+    var rp = routeParts();
+    if (rp[1]) { var m = find("savedMenus", rp[1]); if (!m) return '<div class="card"><h2>Menu not found</h2><p>It may have been deleted on another device.</p><a class="btn" href="#/saved">← Saved menus</a></div>'; if (rp[2] === "shop") return viewShopping(); if (rp[2] === "print") return viewPrintMenu(m); return viewMenuEditor(m); }
+    var g = menuGroups();
+    var sec = function (title, list, empty) { return '<h2 class="mt" style="margin-top:22px">' + title + ' <span class="pill">' + list.length + "</span></h2>" + (list.length ? '<div class="grid">' + list.map(menuCard).join("") + "</div>" : '<p class="muted">' + empty + "</p>"); };
+    return '<div class="page-head row between"><div><p class="kicker">Planned</p><h1>Saved menus</h1><p class="lead">Menus you saved for later or made yourself. Upcoming first, then ones with no date, then past.</p></div>' +
+      '<div class="row no-print"><button class="btn primary" data-act="addMenu">+ Add a menu</button><button class="btn" data-act="saveLaterWeek">+ Save this week</button></div></div>' +
+      (state.savedMenus.length ? "" : '<div class="note">No saved menus yet. Tap <b>+ Save for later</b> on Today or Week, or <b>+ Add a menu</b> to build one for a future date.</div>') +
+      sec("📅 Upcoming", g.up, "Nothing planned ahead yet.") + sec("🗂️ No date", g.none, "None.") + sec("🕘 Past", g.past, "None.") + disclaimer();
+  }
+  function recipeOptions(k, cur) {
+    var list = RECIPES.filter(function (r) { return r.m.indexOf(k) >= 0 && !blockReason(r); });
+    var h = '<option value="">— Pick a recipe —</option>';
+    var curR = cur && recipeById(cur);
+    if (curR && blockReason(curR)) h += '<option value="' + curR.id + '" selected>⚠ ' + esc(curR.n) + "</option>";
+    Object.keys(D.CUISINES).forEach(function (c) {
+      var g = list.filter(function (r) { return r.c === c; }); if (!g.length) return;
+      h += '<optgroup label="' + esc(D.CUISINES[c]) + '">' + g.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + "</option>"; }).join("") + "</optgroup>";
+    });
+    return h;
+  }
+  function viewMenuEditor(m) {
+    var days = [];
+    for (var d = 0; d < dayCount(m); d++) days.push(d);
+    return '<div class="row between no-print" style="margin-bottom:10px"><a class="btn small" href="#/saved">← Saved menus</a><div class="row"><button class="btn small gold" data-act="useMenu" data-id="' + m.id + '">✔ Use this menu</button><a class="btn small" href="#/saved/' + m.id + '/shop">🛒 Shopping list</a><a class="btn small" href="#/saved/' + m.id + '/print">🖨 Print</a><button class="btn small" data-act="dupMenu" data-id="' + m.id + '">⧉ Duplicate</button><button class="btn small danger" data-act="delMenu" data-id="' + m.id + '">Delete</button></div></div>' +
+      '<div class="card"><p class="kicker">' + esc(menuDateLabel(m)) + " · " + (m.kind === "week" ? "Week menu" : "Day menu") + '</p><div class="form-grid">' +
+      '<div class="field"><span>Name</span><input data-mf="name" data-id="' + m.id + '" value="' + esc(m.name) + '" maxlength="80"></div>' +
+      '<div class="field"><span>' + (m.kind === "week" ? "Week start date" : "Planned date") + ' (optional)</span><div class="row"><input type="date" data-mf="date" data-id="' + m.id + '" value="' + esc(m.date || "") + '" style="flex:1">' + (m.date ? '<button class="btn small" data-act="clearDate" data-id="' + m.id + '">Clear</button>' : "") + "</div></div></div>" +
+      '<div class="field"><span>Notes</span><textarea data-mf="notes" data-id="' + m.id + '" maxlength="1000" placeholder="Anything to remember for this menu">' + esc(m.notes || "") + "</textarea></div>" +
+      '<div class="row"><button class="btn small" data-act="fillMenu" data-id="' + m.id + '">✨ Fill empty meals with suggestions</button><button class="btn small" data-act="clearMenu" data-id="' + m.id + '">Clear all meals</button></div>' +
+      '<p class="help">Recipe choices follow your never-eat list' + (S("clean") ? " and the Biblically clean filter" : "") + '. Changes save as you go.</p></div>' +
+      '<div class="week mt">' + days.map(function (d) {
+        var date = menuDayDate(m, d);
+        var label = date ? dayName(date) + " · " + dateLabel(date) : (m.kind === "week" ? "Day " + (d + 1) : "Meals");
+        var sab = date && date.getDay() === 6;
+        return '<div class="day' + (sab ? " sabbath" : "") + '"><div class="dh"><b>' + esc(label) + (sab ? " · Sabbath" : "") + "</b></div>" + SLOTS.map(function (s) {
+          var cur = (m.slots || {})[d + "-" + s.k], r = cur && recipeById(cur), br = r ? blockReason(r) : "";
+          return '<div class="mi" style="flex-wrap:wrap"><span class="e">' + (r ? r.e : s.ico) + '</span><div class="t"><small>' + esc(s.label) + (r && date && S("sabbath") && isSabbathSlot(date, s.k) ? (r.tags.indexOf("prep") >= 0 ? " · cook Friday" : " · not a prep-ahead dish") : "") + '</small><select data-mslot="' + d + "-" + s.k + '" data-id="' + m.id + '" aria-label="' + esc(label + " " + s.label) + '">' + recipeOptions(s.k, cur) + "</select>" +
+            (br ? '<div class="small" style="color:var(--bad)">⚠ ' + esc(br) + "</div>" : "") + (r ? '<a class="small" href="#/recipe/' + r.id + '">See recipe</a>' : "") + "</div></div>";
+        }).join("") + "</div>";
+      }).join("") + "</div>" + disclaimer();
+  }
+  function viewPrintMenu(m) {
+    var rows = [];
+    for (var d = 0; d < dayCount(m); d++) rows.push(d);
+    return '<div class="row between no-print" style="margin-bottom:12px"><a class="btn" href="#/saved/' + m.id + '">← Back</a><button class="btn primary" data-act="doPrint">🖨 Print this page</button></div>' +
+      "<h1>" + esc(m.name) + '</h1><p class="muted">' + esc(menuDateLabel(m)) + " · " + S("servings") + " servings per meal · No pork, tripe or cow foot" + (S("clean") ? " · Biblically clean" : "") + "</p>" + (m.notes ? "<p>📝 " + esc(m.notes) + "</p>" : "") +
+      '<table class="printweek"><thead><tr><th>Day</th>' + SLOTS.map(function (s) { return "<th>" + esc(s.label) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      rows.map(function (d) { var date = menuDayDate(m, d); return "<tr><th>" + (date ? esc(dayName(date)) + "<br><small>" + esc(dateLabel(date)) + "</small>" : (m.kind === "week" ? "Day " + (d + 1) : "Menu")) + "</th>" + SLOTS.map(function (s) { var r = recipeById((m.slots || {})[d + "-" + s.k]); return "<td>" + (r ? r.e + " " + esc(r.n) + (date && S("sabbath") && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0 ? "<br><small>cook Friday</small>" : "") : "—") + "</td>"; }).join("") + "</tr>"; }).join("") +
+      "</tbody></table><p class=\"small muted mt\">Daily sodium: AHA recommends no more than 2,300 mg a day, ideally no more than 1,500 mg for most adults. Desalt saltfish well before cooking.</p>";
+  }
+  function comingUpCard() {
+    var list = comingUp();
+    return '<div class="card mt"><div class="row between"><h2 style="margin:0">📅 Coming up <span class="pill">next 7 days</span></h2><div class="row no-print"><button class="btn small primary" data-act="addMenu">+ Add a menu</button><a class="btn small" href="#/saved">All saved menus</a></div></div>' +
+      (list.length ? '<div class="mt">' + list.map(function (m) { return '<div class="listrow"><div><b><a href="#/saved/' + m.id + '" style="color:inherit">' + esc(m.name) + '</a></b><div class="small muted">' + esc(menuDateLabel(m)) + " · " + menuRecipeIds(m).length + ' meals</div></div><div class="row no-print"><button class="btn small gold" data-act="useMenu" data-id="' + m.id + '">Use</button><a class="btn small" href="#/saved/' + m.id + '/shop">🛒</a></div></div>'; }).join("") + "</div>"
+        : '<p class="muted" style="margin-bottom:0">No menus planned for the next 7 days. Tap <b>+ Add a menu</b> to plan one.</p>') + "</div>";
   }
   function foodList(key, cls, ph) {
     var list = state[key].slice().sort(function (a, b) { return a.name.localeCompare(b.name); });
@@ -434,7 +599,7 @@
       '<div class="card"><h2>🥗 How the recipes cut salt</h2><ul><li>No bouillon cubes, soup-mix packets or bottled jerk sauce — fresh thyme, scallion, garlic, ginger, pimento and Scotch bonnet carry the flavor.</li><li>No-salt-added canned beans and tomatoes.</li><li>Steaming, baking and air-frying instead of deep-frying.</li><li>No pig tail or salt beef in red pea soup or stew peas.</li><li>Every recipe has its own sodium tip and a BP-friendly tag when it fits.</li></ul></div>' + disclaimer();
   }
   function viewAbout() {
-    return '<div class="page-head"><h1>About Jamaican Menus</h1></div><div class="card"><p>Healthy Jamaican menus built around the foods you love — callaloo, saltfish, snapper, parrot fish, sprat, okra, cabbage, collard greens, ackee and breadfruit — plus healthy dishes from other cuisines.</p><ul><li>No recipe uses pork, pork products, tripe or cow foot.</li><li>' + RECIPES.length + " recipes, " + RECIPES.filter(function (r) { return r.c === "jm"; }).length + ' of them Jamaican.</li><li>Your lists and menus are saved only on this device unless you turn on <a href="#/sync">Sync</a>, which keeps a private copy in your own GitHub account.</li><li>Works offline once it has loaded.</li></ul></div>' +
+    return '<div class="page-head"><h1>About Jamaican Menus</h1></div><div class="card"><p>Healthy Jamaican menus built around the foods you love — callaloo, saltfish, snapper, parrot fish, sprat, okra, cabbage, collard greens, ackee and breadfruit — plus healthy dishes from other cuisines.</p><ul><li>No recipe uses pork, pork products, tripe or cow foot.</li><li>' + RECIPES.length + " recipes, " + RECIPES.filter(function (r) { return r.c === "jm"; }).length + ' of them Jamaican.</li><li>Saved and planned menus are included in Sync and in the backup file.</li><li>Your lists and menus are saved only on this device unless you turn on <a href="#/sync">Sync</a>, which keeps a private copy in your own GitHub account.</li><li>Works offline once it has loaded.</li></ul></div>' +
       '<div class="card"><h2>Backup</h2><div class="row"><button class="btn" data-act="export">⬇ Export backup</button><label class="btn">⬆ Import backup<input type="file" id="importFile" accept="application/json" hidden></label></div></div>' + disclaimer();
   }
   function viewSync() {
@@ -448,7 +613,7 @@
   function disclaimer() { return '<p class="disclaimer">For information and meal ideas only, not medical advice. Ask your doctor or a dietitian about the right sodium goal for you, especially if you take blood pressure medicine. Facts are linked to their sources (AHA, FDA, USDA).</p>'; }
 
   /* ---------- render ---------- */
-  var VIEWS = { menu: viewMenu, week: viewWeek, print: viewPrint, recipes: viewRecipes, recipe: null, shopping: viewShopping, foods: viewFoods, health: viewHealth, about: viewAbout, sync: viewSync };
+  var VIEWS = { saved: viewSaved, menu: viewMenu, week: viewWeek, print: viewPrint, recipes: viewRecipes, recipe: null, shopping: viewShopping, foods: viewFoods, health: viewHealth, about: viewAbout, sync: viewSync };
   var lastRoute = "";
   function routeParts() { return (location.hash || "").replace(/^#\/?/, "").split("/"); }
   function route() { var r = routeParts()[0]; return VIEWS.hasOwnProperty(r) ? r : "menu"; }
@@ -457,7 +622,7 @@
     var grp = "", h = "";
     NAV.forEach(function (n) { if (n.group !== grp) { grp = n.group; h += '<div class="grp">' + esc(grp) + "</div>"; } h += '<a href="#/' + n.id + '" class="' + (n.id === r ? "active" : "") + '"><span class="ico">' + n.ico + "</span>" + esc(n.label) + "</a>"; });
     document.getElementById("rail").innerHTML = h;
-    document.getElementById("tabbar").innerHTML = TABS.map(function (id) { var n = NAV.filter(function (x) { return x.id === id; })[0]; return '<a href="#/' + id + '" class="' + (id === r ? "active" : "") + '"><span class="ico">' + n.ico + "</span>" + esc(n.label.replace("Menu maker", "Today").replace("Weekly menu", "Week").replace("Shopping list", "Shopping")) + "</a>"; }).join("") + '<a href="#" data-more="1"><span class="ico">☰</span>More</a>';
+    document.getElementById("tabbar").innerHTML = TABS.map(function (id) { var n = NAV.filter(function (x) { return x.id === id; })[0]; return '<a href="#/' + id + '" class="' + (id === r ? "active" : "") + '"><span class="ico">' + n.ico + "</span>" + esc(n.label.replace("Menu maker", "Today").replace("Weekly menu", "Week").replace("Shopping list", "Shopping").replace("Saved menus", "Saved")) + "</a>"; }).join("") + '<a href="#" data-more="1"><span class="ico">☰</span>More</a>';
     document.getElementById("themeBtn").innerHTML = document.documentElement.dataset.theme === "dark" ? "☀" : "☾";
   }
   function render() {
@@ -467,7 +632,7 @@
     var key = location.hash; if (key !== lastRoute) { window.scrollTo(0, 0); lastRoute = key; }
     if (r === "sync") renderSyncStatus();
     renderSyncBadge();
-    var title = r === "recipe" ? ((recipeById(routeParts()[1]) || {}).n || "Recipe") : ((NAV.filter(function (n) { return n.id === r; })[0] || {}).label || "Print");
+    var title = r === "recipe" ? ((recipeById(routeParts()[1]) || {}).n || "Recipe") : r === "saved" && routeParts()[1] ? ((find("savedMenus", routeParts()[1]) || {}).name || "Saved menu") : ((NAV.filter(function (n) { return n.id === r; })[0] || {}).label || "Print");
     document.title = title + " · Jamaican Menus";
   }
   function rerender() { var y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -499,7 +664,17 @@
     else if (a === "rtag") { ui.tag = b.dataset.t; rerender(); }
     else if (a === "fav") { var id = "fav-" + b.dataset.id; if (find("favorites", id)) { removeItem("favorites", id); toast("Removed from favorites"); } else { upsert("favorites", { id: id, recipeId: b.dataset.id }); toast("Added to favorites"); } save(); rerender(); }
     else if (a === "clearCook") { var r = recipeById(b.dataset.id); r.ing.forEach(function (x, i) { if (getFlag("cookChecks", r.id, String(i))) setFlag("cookChecks", r.id, String(i), false); }); save(); rerender(); }
-    else if (a === "clearShop") { var ws = weekStart(); shoppingItems().forEach(function (x) { if (getFlag("shopChecks", ws, x.key)) setFlag("shopChecks", ws, x.key, false); }); save(); rerender(); }
+    else if (a === "saveLaterDay") saveLaterDialog("day");
+    else if (a === "saveLaterWeek") saveLaterDialog("week");
+    else if (a === "addMenu") addMenuDialog();
+    else if (a === "closeModal") closeModal();
+    else if (a === "useMenu") { var um = find("savedMenus", b.dataset.id); if (um && useMenu(um)) location.hash = um.kind === "week" ? "#/week" : "#/menu"; }
+    else if (a === "dupMenu") { var dm = find("savedMenus", b.dataset.id); if (dm) { var cp = JSON.parse(JSON.stringify(dm)); cp.id = "menu-" + uid(); cp.name = dm.name + " (copy)"; delete cp.createdAt; upsert("savedMenus", cp); save(); toast("Duplicated"); location.hash = "#/saved/" + cp.id; } }
+    else if (a === "delMenu") { var xm = find("savedMenus", b.dataset.id); if (xm && confirm("Delete the saved menu “" + xm.name + "”? This can't be undone.")) { removeItem("savedMenus", xm.id); save(); toast("Deleted"); if (routeParts()[1]) location.hash = "#/saved"; else rerender(); } }
+    else if (a === "fillMenu") { var fm = find("savedMenus", b.dataset.id); if (fm) { suggestFill(fm, true); upsert("savedMenus", fm); save(); toast("Filled empty meals"); rerender(); } }
+    else if (a === "clearMenu") { var cm = find("savedMenus", b.dataset.id); if (cm && confirm("Clear every meal in this menu?")) { cm.slots = {}; upsert("savedMenus", cm); save(); rerender(); } }
+    else if (a === "clearDate") { var cd = find("savedMenus", b.dataset.id); if (cd) { cd.date = ""; upsert("savedMenus", cd); save(); rerender(); } }
+    else if (a === "clearShop") { var ws = shopSource().key; shoppingItems().forEach(function (x) { if (getFlag("shopChecks", ws, x.key)) setFlag("shopChecks", ws, x.key, false); }); save(); rerender(); }
     else if (a === "copyList") { copyText(shoppingText()); }
     else if (a === "shareList") { var t = shoppingText(); if (navigator.share) navigator.share({ title: "Shopping list", text: t }).catch(function () {}); else copyText(t); }
     else if (a === "rmFood") { var f = find(b.dataset.key, b.dataset.id); removeItem(b.dataset.key, b.dataset.id); save(); toast("Removed " + (f ? f.name : "")); rerender(); }
@@ -518,7 +693,9 @@
     }
     if (t.dataset.ui) { ui[t.dataset.ui] = t.value; rerender(); return; }
     if (t.dataset.cook) { setFlag("cookChecks", t.dataset.cook, t.dataset.i, t.checked); save(); var sp = t.parentNode.querySelector("span:last-child"); if (sp) sp.className = t.checked ? "done" : ""; return; }
-    if (t.dataset.shop) { setFlag("shopChecks", weekStart(), t.dataset.shop, t.checked); save(); if (ui.hideChecked && t.checked) rerender(); else { var s2 = t.parentNode.querySelector("span span"); if (s2) s2.className = t.checked ? "done" : ""; var hd = document.querySelector(".card .row.between b"); if (hd) { var items = shoppingItems(); hd.textContent = items.filter(function (x) { return getFlag("shopChecks", weekStart(), x.key); }).length + " of " + items.length + " items checked"; } } return; }
+    if (t.dataset.shop) { var sk = shopSource().key; setFlag("shopChecks", sk, t.dataset.shop, t.checked); save(); if (ui.hideChecked && t.checked) rerender(); else { var s2 = t.parentNode.querySelector("span span"); if (s2) s2.className = t.checked ? "done" : ""; var hd = document.getElementById("shopCount"); if (hd) { var items = shoppingItems(); hd.textContent = items.filter(function (x) { return getFlag("shopChecks", sk, x.key); }).length + " of " + items.length + " items checked"; } } return; }
+    if (t.dataset.mslot) { var mm = find("savedMenus", t.dataset.id); if (!mm) return; mm.slots = mm.slots || {}; if (t.value) mm.slots[t.dataset.mslot] = t.value; else delete mm.slots[t.dataset.mslot]; upsert("savedMenus", mm); save(); rerender(); return; }
+    if (t.dataset.mf) { var me = find("savedMenus", t.dataset.id); if (!me) return; var v2 = String(t.value || "").slice(0, t.dataset.mf === "notes" ? 1000 : 80); if (t.dataset.mf === "name" && !v2.trim()) { toast("A menu needs a name"); t.value = me.name; return; } me[t.dataset.mf] = t.dataset.mf === "name" ? v2.trim() : v2; upsert("savedMenus", me); save(); toast(t.dataset.mf === "date" ? "Rescheduled" : "Saved"); if (t.dataset.mf !== "notes") rerender(); return; }
     if (t.dataset.act2 === "hideChecked") { ui.hideChecked = t.checked; rerender(); return; }
     if (t.id === "importFile" && t.files && t.files[0]) {
       var reader = new FileReader();
@@ -530,6 +707,19 @@
     var t = e.target;
     if (t.id === "recipeSearch") { ui.q = t.value; var tmp = document.createElement("div"); var html = viewRecipes(); tmp.innerHTML = html; document.getElementById("recipeList").innerHTML = tmp.querySelector("#recipeList").innerHTML; }
     if (t.type === "range" && t.dataset.set === "ratio") { var l = document.getElementById("ratioLbl"); if (l) l.textContent = t.value + "% Jamaican · " + (100 - t.value) + "% other healthy cuisines"; }
+  }
+  function onModalSubmit(e) {
+    var f = e.target.closest("[data-modal]"); if (!f) return; e.preventDefault();
+    var name = f.name.value.trim().slice(0, 80); if (!name) return;
+    var date = f.date.value || "", notes = (f.notes.value || "").slice(0, 1000), m;
+    if (f.dataset.modal === "saveLater") {
+      m = { id: "menu-" + uid(), name: name, kind: f.dataset.kind, date: date, notes: notes, slots: snapshotSlots(f.dataset.kind) };
+      upsert("savedMenus", m); save(); closeModal(); toast("Saved “" + name + "”"); rerender();
+    } else {
+      m = { id: "menu-" + uid(), name: name, kind: f.kind.value === "week" ? "week" : "day", date: date, notes: notes, slots: {} };
+      if (f.start.value === "suggest") suggestFill(m, true);
+      upsert("savedMenus", m); save(); closeModal(); toast("Menu created — pick your recipes"); location.hash = "#/saved/" + m.id;
+    }
   }
   function onSubmit(e) {
     var f = e.target.closest("[data-form]"); if (!f) return; e.preventDefault();
@@ -621,7 +811,11 @@
   document.getElementById("tabbar").addEventListener("click", onClick);
   var viewEl = document.getElementById("view");
   viewEl.addEventListener("click", onClick); viewEl.addEventListener("change", onChange); viewEl.addEventListener("input", onInput); viewEl.addEventListener("submit", onSubmit);
-  window.addEventListener("hashchange", render);
+  var modalEl = document.getElementById("modal");
+  modalEl.addEventListener("submit", onModalSubmit);
+  modalEl.addEventListener("click", function (e) { if (e.target === modalEl) closeModal(); else onClick(e); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modalEl.hidden) closeModal(); });
+  window.addEventListener("hashchange", function () { closeModal(); render(); });
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") schedulePull("focus"); });
   window.addEventListener("online", function () { if (MenuSync.getToken()) runSync("online"); });
   if (!location.hash) location.hash = "#/menu"; else render();

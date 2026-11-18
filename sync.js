@@ -11,7 +11,7 @@
   var GIST_ID_KEY = "jmenus-sync-gist-id";
   var LAST_KEY = "jmenus-sync-last";
 
-  var LIST_KEYS = ["favorites", "myFoods", "neverEat", "plan", "notes"];
+  var LIST_KEYS = ["favorites", "myFoods", "neverEat", "plan", "notes", "savedMenus"];
   var FLAG_KEYS = ["shopChecks", "cookChecks"];
 
   function emptyTombs() {
