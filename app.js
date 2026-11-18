@@ -174,7 +174,8 @@
     if (exceptId && pool.length > 1) pool = pool.filter(function (r) { return r.id !== exceptId; });
     return pool;
   }
-  function pickRecipe(k, date, used, exceptId, dayIds) {
+  var RICE_PAIR = ["brown-stew-chicken", "jerk-chicken", "baked-chicken-jm", "roast-chicken", "curry-chicken", "escovitch-snapper", "brown-stew-parrot", "jerk-fish", "curry-chickpea-pumpkin", "oven-sprat"];
+  function pickRecipe(k, date, used, exceptId, dayIds, dinnerId) {
     var pool = candidates(k, date, exceptId); if (!pool.length) return null;
     if (dayIds) { var nd = pool.filter(function (r) { return dayIds.indexOf(r.id) < 0; }); if (nd.length) pool = nd; }
     var wantJm = Math.random() * 100 < S("ratio");
@@ -186,6 +187,7 @@
       if (isFav(r.id)) w += 1.5;
       if (r.tags.indexOf("bp") >= 0) w += 0.6;
       w = w / (1 + 3 * (used[r.id] || 0));
+      if (k === "side" && r.id === "rice-and-peas" && dinnerId && RICE_PAIR.indexOf(dinnerId) >= 0) w *= 6;
       return w;
     });
     var total = weights.reduce(function (a, b) { return a + b; }, 0), x = Math.random() * total;
@@ -204,7 +206,8 @@
       SLOTS.forEach(function (s) {
         var p = planItem(d, s.k);
         if (p && p.locked && p.recipeId && recipeById(p.recipeId) && !blockReason(recipeById(p.recipeId))) return;
-        var r = pickRecipe(s.k, days[d], used, p && p.recipeId, dayIds);
+        var dn = s.k === "side" ? (planItem(d, "d") || {}).recipeId : null;
+        var r = pickRecipe(s.k, days[d], used, p && p.recipeId, dayIds, dn);
         if (!r) return;
         used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id);
         upsert("plan", { id: slotId(d, s.k), recipeId: r.id, locked: false, createdAt: p && p.createdAt });
@@ -223,7 +226,7 @@
   function swapSlot(d, k) {
     var days = weekDays(), p = planItem(d, k), used = usedCounts();
     var dayIds = SLOTS.map(function (s) { var q = planItem(d, s.k); return q && s.k !== k ? q.recipeId : null; }).filter(Boolean);
-    var r = pickRecipe(k, days[d], used, p && p.recipeId, dayIds);
+    var r = pickRecipe(k, days[d], used, p && p.recipeId, dayIds, k === "side" ? (planItem(d, "d") || {}).recipeId : null);
     if (!r) { toast("No other recipe fits your filters for this meal."); return; }
     upsert("plan", { id: slotId(d, k), recipeId: r.id, locked: false, createdAt: p && p.createdAt });
     save(); toast("Swapped: " + r.n);
@@ -481,7 +484,7 @@
       var dayIds = SLOTS.map(function (s) { return slots[d + "-" + s.k]; }).filter(Boolean);
       SLOTS.forEach(function (s) {
         var k = d + "-" + s.k; if (onlyEmpty && slots[k] && recipeById(slots[k]) && !blockReason(recipeById(slots[k]))) return;
-        var r = pickRecipe(s.k, menuDayDate(m, d), used, null, dayIds); if (!r) return;
+        var r = pickRecipe(s.k, menuDayDate(m, d), used, null, dayIds, s.k === "side" ? slots[d + "-d"] : null); if (!r) return;
         slots[k] = r.id; used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id);
       });
     }
