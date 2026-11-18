@@ -108,9 +108,15 @@
     return s;
   }
   var state = load();
-  var DEFAULTS = { ratio: 75, cuisines: ["car", "med", "afr", "asi", "lat"], useLikes: true, clean: true, servings: 2, sabbath: true, exclude: "", theme: "" };
+  var DEFAULTS = { ratio: 75, cuisines: ["car", "med", "afr", "asi", "lat", "oth"], useLikes: true, clean: true, servings: 2, sabbath: true, exclude: "", theme: "" };
   function S(k) { var v = state.settings[k]; return v === undefined ? DEFAULTS[k] : v; }
   function setS(k, v) { state.settings[k] = v; state.settingsTimes[k] = nowISO(); save(); }
+  function migrate() {
+    if (state.settings.cuisinesOth) return;
+    var t = nowISO();
+    if (Array.isArray(state.settings.cuisines) && state.settings.cuisines.indexOf("oth") < 0) { state.settings.cuisines = state.settings.cuisines.concat(["oth"]); state.settingsTimes.cuisines = t; }
+    state.settings.cuisinesOth = true; state.settingsTimes.cuisinesOth = t; persist();
+  }
   function seed() {
     if (state.settings.seeded) return;
     DEFAULT_LIKES.forEach(function (n) { var id = "like-" + slug(n); if (!find("myFoods", id) && !state.tombstones.myFoods[id]) state.myFoods.push({ id: id, name: n, createdAt: SEED_TIME, updatedAt: SEED_TIME }); });
@@ -186,6 +192,7 @@
       if (useLikes) w += 2.2 * Math.min(3, likeHits(r).length);
       if (isFav(r.id)) w += 1.5;
       if (r.tags.indexOf("bp") >= 0) w += 0.6;
+      if (r.na === "watch") w *= 0.7;
       w = w / (1 + 3 * (used[r.id] || 0));
       if (k === "side" && r.id === "rice-and-peas" && dinnerId && RICE_PAIR.indexOf(dinnerId) >= 0) w *= 6;
       return w;
@@ -258,7 +265,7 @@
   }
   function optionsCard() {
     var cu = S("cuisines") || [];
-    var other = ["car", "med", "afr", "asi", "lat"];
+    var other = ["car", "med", "afr", "asi", "lat", "oth"];
     return '<div class="card"><h2>Menu options</h2><div class="form-grid">' +
       '<div class="field"><span>Mix: <b id="ratioLbl">' + S("ratio") + "% Jamaican · " + (100 - S("ratio")) + '% other healthy cuisines</b></span><input type="range" min="0" max="100" step="5" value="' + S("ratio") + '" data-set="ratio"></div>' +
       '<div class="field"><span>Servings per meal</span><div class="stepper"><button class="btn small" data-act="serv" data-v="-1" aria-label="Fewer servings">−</button><b>' + S("servings") + '</b><button class="btn small" data-act="serv" data-v="1" aria-label="More servings">+</button><span class="help">for the shopping list and recipes</span></div></div>' +
@@ -806,7 +813,7 @@
   }
 
   /* ---------- boot ---------- */
-  seed(); applyTheme();
+  seed(); migrate(); applyTheme();
   document.getElementById("themeBtn").addEventListener("click", function () { setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); });
   document.getElementById("menuBtn").addEventListener("click", function () { if (document.getElementById("rail").classList.contains("open")) closeMenu(); else openMenu(); });
   document.getElementById("railBackdrop").addEventListener("click", closeMenu);
