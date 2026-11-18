@@ -37,6 +37,7 @@
   var NAV = [
     { id: "menu", label: "Menu maker", ico: "🍽️", group: "Plan" },
     { id: "week", label: "Weekly menu", ico: "📅", group: "Plan" },
+    { id: "all", label: "All menus", ico: "📚", group: "Plan" },
     { id: "saved", label: "Saved menus", ico: "🗂️", group: "Plan" },
     { id: "shopping", label: "Shopping list", ico: "🛒", group: "Plan" },
     { id: "recipes", label: "Recipes", ico: "📖", group: "Cook" },
@@ -285,7 +286,8 @@
     var sab = date.getDay() === 6;
     return '<div class="hero"><p class="kicker">' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + '</p><h1>Today\'s healthy Jamaican menu</h1><p>Heart-healthy, lower in salt, and never any pork, tripe or cow foot. Tap a dish for the recipe, 🔓 to lock it, or ⇄ to swap it.</p>' +
       '<div class="row mt"><button class="btn gold" data-act="shuffleDay" data-d="' + ti + '">🔀 Shuffle today</button><button class="btn" data-act="shuffleWeek" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">🔀 Shuffle whole week</button><a class="btn" href="#/week" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">📅 See the week</a></div>' +
-      '<div class="row" style="margin-top:8px"><button class="btn save-later" data-act="saveLaterDay">+ Save for later</button><button class="btn save-later" data-act="addMenu">+ Add a menu</button></div></div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn save-later" data-act="saveLaterDay">+ Save for later</button><button class="btn save-later" data-act="addMenu">+ Add a menu</button></div>' +
+      '<a class="btn show-all" href="#/all">📚 Show all menus</a></div>' +
       (sab ? '<div class="note gold mt">Happy Sabbath. Today\'s dishes are ones you could cook on Friday before sunset.</div>' : (date.getDay() === 5 && S("sabbath") ? '<div class="note gold mt">Friday: cook tonight\'s dinner and tomorrow\'s Sabbath meals before sunset. <a href="#/week">See Saturday\'s menu</a>.</div>' : "")) +
       '<div class="slots mt">' + SLOTS.map(function (s) { return slotCard(ti, s, date); }).join("") + "</div>" +
       '<div class="note mt">Daily sodium goal: the American Heart Association recommends no more than 2,300 mg a day, with an ideal of no more than 1,500 mg for most adults. ' + src("AHA", LINKS.aha) + " · <a href=\"#/health\">More heart-health tips</a></div>" +
@@ -297,7 +299,7 @@
     var days = weekDays(), ti = todayIdx();
     return '<div class="page-head row between"><div><p class="kicker">Week of ' + esc(dateLabel(days[0])) + " – " + esc(dateLabel(days[6])) + '</p><h1>Weekly menu</h1><p class="lead">Seven days of breakfast, lunch, dinner, a side and a snack. Locked meals (🔒) stay put when you shuffle.</p></div>' +
       '<div class="row no-print"><button class="btn primary" data-act="shuffleWeek">🔀 Shuffle week</button><a class="btn" href="#/shopping">🛒 Shopping list</a><button class="btn" data-act="print">🖨 Print</button><button class="btn" data-act="newWeek">New week</button></div></div>' +
-      '<div class="row no-print" style="margin:-4px 0 14px"><button class="btn gold" data-act="saveLaterWeek">+ Save for later</button><button class="btn" data-act="addMenu">+ Add a menu</button><a class="btn ghost" href="#/saved">🗂️ Saved menus (' + state.savedMenus.length + ')</a></div>' +
+      '<div class="row no-print" style="margin:-4px 0 14px"><button class="btn gold" data-act="saveLaterWeek">+ Save for later</button><button class="btn" data-act="addMenu">+ Add a menu</button><a class="btn primary" href="#/all">📚 Show all menus</a><a class="btn ghost" href="#/saved">🗂️ Saved menus (' + state.savedMenus.length + ')</a></div>' +
       '<div class="week">' + days.map(function (date, d) {
         var sab = date.getDay() === 6;
         return '<div class="day' + (d === ti ? " today" : "") + (sab && d !== ti ? " sabbath" : "") + '"><div class="dh"><b>' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + (d === ti ? " · Today" : "") + '</b><button class="btn small ghost no-print" data-act="shuffleDay" data-d="' + d + '" title="Shuffle this day" style="color:inherit;border-color:currentColor">🔀</button></div>' +
@@ -319,7 +321,57 @@
       days.map(function (date, d) { return "<tr><th>" + esc(dayName(date)) + "<br><small>" + esc(dateLabel(date)) + "</small></th>" + SLOTS.map(function (s) { var p = planItem(d, s.k), r = p && recipeById(p.recipeId); return "<td>" + (r ? r.e + " " + esc(r.n) + (S("sabbath") && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0 ? "<br><small>cook Friday</small>" : "") : "—") + "</td>"; }).join("") + "</tr>"; }).join("") +
       "</tbody></table><p class=\"small muted mt\">Daily sodium: AHA recommends no more than 2,300 mg a day, ideally no more than 1,500 mg for most adults. Desalt saltfish well before cooking.</p>";
   }
-  var ui = { q: "", cuisine: "", meal: "", tag: "", hideChecked: false };
+  var ui = { q: "", cuisine: "", meal: "", tag: "", hideChecked: false, allTab: "recipes", allQ: "", allCu: "", allOpen: {}, allShowHidden: false };
+  var ALL_GROUPS = [
+    { k: "b", label: "Breakfast", ico: "🌅", test: function (r) { return r.m.indexOf("b") >= 0; } },
+    { k: "l", label: "Lunch", ico: "☀️", test: function (r) { return r.m.indexOf("l") >= 0 && !isSoup(r); } },
+    { k: "d", label: "Dinner", ico: "🌙", test: function (r) { return r.m.indexOf("d") >= 0 && !isSoup(r); } },
+    { k: "side", label: "Sides", ico: "🥗", test: function (r) { return r.m.indexOf("side") >= 0; } },
+    { k: "soup", label: "Soups", ico: "🍲", test: isSoup },
+    { k: "s", label: "Snacks & baked", ico: "🍌", test: function (r) { return r.m.indexOf("s") >= 0; } }
+  ];
+  function isSoup(r) { return /soup|fish tea|callaloo \(no crab\)/i.test(r.n); }
+  function allFiltered() {
+    var q = ui.allQ.trim().toLowerCase();
+    return RECIPES.filter(function (r) {
+      if (ui.allCu === "jm" && r.c !== "jm") return false;
+      if (ui.allCu === "other" && r.c === "jm") return false;
+      if (q && recipeText(r).indexOf(q) < 0 && r.n.toLowerCase().indexOf(q) < 0 && D.CUISINES[r.c].toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+  function allListHtml() {
+    var list = allFiltered(), q = ui.allQ.trim();
+    var totalShown = list.filter(function (r) { return !blockReason(r); }).length, totalHidden = list.length - totalShown;
+    var h = '<p class="help">' + totalShown + " recipes" + (totalHidden ? " · " + totalHidden + " hidden by your never-eat list, Biblically clean filter or menu exclusions" + (ui.allShowHidden ? " (shown greyed out below)" : "") : "") + ". A recipe can be listed under more than one meal.</p>";
+    ALL_GROUPS.forEach(function (g) {
+      var items = list.filter(g.test), ok = items.filter(function (r) { return !blockReason(r); }), hid = items.filter(function (r) { return blockReason(r); });
+      var open = q ? true : ui.allOpen[g.k] !== false;
+      h += '<details class="allgrp" data-grp="' + g.k + '"' + (open ? " open" : "") + '><summary><span>' + g.ico + " " + esc(g.label) + '</span><span class="pill">' + ok.length + "</span>" + (hid.length ? '<span class="pill">' + hid.length + " hidden</span>" : "") + "</summary>" +
+        (ok.length ? '<ul class="alllist">' + ok.map(function (r) {
+          return '<li><a href="#/recipe/' + r.id + '"><span class="e">' + r.e + '</span><span class="t"><b>' + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b><small>' + esc(D.CUISINES[r.c]) + " · " + r.t + " min</small></span>" + '<span class="tags">' + tagPills(r, 2) + "</span></a></li>";
+        }).join("") + "</ul>" : '<p class="muted" style="padding:0 14px">No recipes match.</p>') +
+        (hid.length && ui.allShowHidden ? '<ul class="alllist hidden-items">' + hid.map(function (r) { return '<li><a href="#/recipe/' + r.id + '"><span class="e">' + r.e + '</span><span class="t"><b>' + esc(r.n) + '</b><small>Hidden: ' + esc(blockReason(r)) + "</small></span></a></li>"; }).join("") + "</ul>" : "") +
+        "</details>";
+    });
+    return h;
+  }
+  function viewAll() {
+    var tab = ui.allTab;
+    var head = '<div class="page-head"><p class="kicker">Everything in one place</p><h1>All menus</h1><p class="lead">Every recipe in the app grouped by meal, plus all your saved and planned menus.</p></div>' +
+      '<div class="chips no-print" role="tablist" style="margin-bottom:12px"><button class="chip' + (tab === "recipes" ? " on" : "") + '" data-act="allTab" data-t="recipes" role="tab">📖 All recipes (' + RECIPES.filter(function (r) { return !blockReason(r); }).length + ')</button><button class="chip' + (tab === "saved" ? " on" : "") + '" data-act="allTab" data-t="saved" role="tab">🗂️ Saved & planned (' + state.savedMenus.length + ")</button></div>";
+    if (tab === "saved") {
+      var g = menuGroups();
+      var row = function (m) { return '<li><a href="#/saved/' + m.id + '"><span class="e">' + (m.kind === "week" ? "📅" : "🍽️") + '</span><span class="t"><b>' + esc(m.name) + "</b><small>" + esc(menuDateLabel(m)) + " · " + menuRecipeIds(m).length + " meals</small></span></a></li>"; };
+      var sec = function (title, list) { return '<details class="allgrp" open><summary><span>' + title + '</span><span class="pill">' + list.length + "</span></summary>" + (list.length ? '<ul class="alllist">' + list.map(row).join("") + "</ul>" : '<p class="muted" style="padding:0 14px">None.</p>') + "</details>"; };
+      return head + '<div class="row no-print" style="margin-bottom:12px"><button class="btn primary" data-act="addMenu">+ Add a menu</button><a class="btn" href="#/saved">Manage saved menus</a></div>' +
+        sec("📅 Upcoming", g.up) + sec("🗂️ No date", g.none) + sec("🕘 Past", g.past) + disclaimer();
+    }
+    return head + '<div class="card no-print"><div class="field"><span>Search all recipes</span><input type="search" id="allSearch" value="' + esc(ui.allQ) + '" placeholder="Try chicken, saltfish, soup…"></div>' +
+      '<div class="row between"><div class="chips">' + [["", "All cuisines"], ["jm", "🇯🇲 Jamaican"], ["other", "Other cuisines"]].map(function (c) { return '<button class="chip' + (ui.allCu === c[0] ? " on" : "") + '" data-act="allCu" data-c="' + c[0] + '">' + c[1] + "</button>"; }).join("") + '</div>' +
+      '<div class="row"><button class="btn small" data-act="allExpand">Expand all</button><button class="btn small" data-act="allCollapse">Collapse all</button><label class="row small"><input type="checkbox" data-act2="allShowHidden"' + (ui.allShowHidden ? " checked" : "") + "> Show hidden</label></div></div></div>" +
+      '<div id="allList" class="mt">' + allListHtml() + "</div>" + disclaimer();
+  }
   function viewRecipes() {
     var list = RECIPES.filter(function (r) {
       if (ui.cuisine && r.c !== ui.cuisine) return false;
@@ -623,7 +675,7 @@
   function disclaimer() { return '<p class="disclaimer">For information and meal ideas only, not medical advice. Ask your doctor or a dietitian about the right sodium goal for you, especially if you take blood pressure medicine. Facts are linked to their sources (AHA, FDA, USDA).</p>'; }
 
   /* ---------- render ---------- */
-  var VIEWS = { saved: viewSaved, menu: viewMenu, week: viewWeek, print: viewPrint, recipes: viewRecipes, recipe: null, shopping: viewShopping, foods: viewFoods, health: viewHealth, about: viewAbout, sync: viewSync };
+  var VIEWS = { all: viewAll, saved: viewSaved, menu: viewMenu, week: viewWeek, print: viewPrint, recipes: viewRecipes, recipe: null, shopping: viewShopping, foods: viewFoods, health: viewHealth, about: viewAbout, sync: viewSync };
   var lastRoute = "";
   function routeParts() { return (location.hash || "").replace(/^#\/?/, "").split("/"); }
   function route() { var r = routeParts()[0]; return VIEWS.hasOwnProperty(r) ? r : "menu"; }
@@ -632,7 +684,7 @@
     var grp = "", h = "";
     NAV.forEach(function (n) { if (n.group !== grp) { grp = n.group; h += '<div class="grp">' + esc(grp) + "</div>"; } h += '<a href="#/' + n.id + '" class="' + (n.id === r ? "active" : "") + '"><span class="ico">' + n.ico + "</span>" + esc(n.label) + "</a>"; });
     document.getElementById("rail").innerHTML = h;
-    document.getElementById("tabbar").innerHTML = TABS.map(function (id) { var n = NAV.filter(function (x) { return x.id === id; })[0]; return '<a href="#/' + id + '" class="' + (id === r ? "active" : "") + '"><span class="ico">' + n.ico + "</span>" + esc(n.label.replace("Menu maker", "Today").replace("Weekly menu", "Week").replace("Shopping list", "Shopping").replace("Saved menus", "Saved")) + "</a>"; }).join("") + '<a href="#" data-more="1"><span class="ico">☰</span>More</a>';
+    document.getElementById("tabbar").innerHTML = TABS.map(function (id) { var n = NAV.filter(function (x) { return x.id === id; })[0]; return '<a href="#/' + id + '" class="' + (id === r ? "active" : "") + '"><span class="ico">' + n.ico + "</span>" + esc(n.label.replace("Menu maker", "Today").replace("Weekly menu", "Week").replace("Shopping list", "Shopping").replace("Saved menus", "Saved").replace("All menus", "All")) + "</a>"; }).join("") + '<a href="#" data-more="1"><span class="ico">☰</span>More</a>';
     document.getElementById("themeBtn").innerHTML = document.documentElement.dataset.theme === "dark" ? "☀" : "☾";
   }
   function render() {
@@ -674,6 +726,9 @@
     else if (a === "rtag") { ui.tag = b.dataset.t; rerender(); }
     else if (a === "fav") { var id = "fav-" + b.dataset.id; if (find("favorites", id)) { removeItem("favorites", id); toast("Removed from favorites"); } else { upsert("favorites", { id: id, recipeId: b.dataset.id }); toast("Added to favorites"); } save(); rerender(); }
     else if (a === "clearCook") { var r = recipeById(b.dataset.id); r.ing.forEach(function (x, i) { if (getFlag("cookChecks", r.id, String(i))) setFlag("cookChecks", r.id, String(i), false); }); save(); rerender(); }
+    else if (a === "allTab") { ui.allTab = b.dataset.t; rerender(); }
+    else if (a === "allCu") { ui.allCu = b.dataset.c; rerender(); }
+    else if (a === "allExpand" || a === "allCollapse") { ALL_GROUPS.forEach(function (g) { ui.allOpen[g.k] = a === "allExpand"; }); if (ui.allQ && a === "allCollapse") { ui.allQ = ""; } rerender(); }
     else if (a === "saveLaterDay") saveLaterDialog("day");
     else if (a === "saveLaterWeek") saveLaterDialog("week");
     else if (a === "addMenu") addMenuDialog();
@@ -706,6 +761,7 @@
     if (t.dataset.shop) { var sk = shopSource().key; setFlag("shopChecks", sk, t.dataset.shop, t.checked); save(); if (ui.hideChecked && t.checked) rerender(); else { var s2 = t.parentNode.querySelector("span span"); if (s2) s2.className = t.checked ? "done" : ""; var hd = document.getElementById("shopCount"); if (hd) { var items = shoppingItems(); hd.textContent = items.filter(function (x) { return getFlag("shopChecks", sk, x.key); }).length + " of " + items.length + " items checked"; } } return; }
     if (t.dataset.mslot) { var mm = find("savedMenus", t.dataset.id); if (!mm) return; mm.slots = mm.slots || {}; if (t.value) mm.slots[t.dataset.mslot] = t.value; else delete mm.slots[t.dataset.mslot]; upsert("savedMenus", mm); save(); rerender(); return; }
     if (t.dataset.mf) { var me = find("savedMenus", t.dataset.id); if (!me) return; var v2 = String(t.value || "").slice(0, t.dataset.mf === "notes" ? 1000 : 80); if (t.dataset.mf === "name" && !v2.trim()) { toast("A menu needs a name"); t.value = me.name; return; } me[t.dataset.mf] = t.dataset.mf === "name" ? v2.trim() : v2; upsert("savedMenus", me); save(); toast(t.dataset.mf === "date" ? "Rescheduled" : "Saved"); if (t.dataset.mf !== "notes") rerender(); return; }
+    if (t.dataset.act2 === "allShowHidden") { ui.allShowHidden = t.checked; rerender(); return; }
     if (t.dataset.act2 === "hideChecked") { ui.hideChecked = t.checked; rerender(); return; }
     if (t.id === "importFile" && t.files && t.files[0]) {
       var reader = new FileReader();
@@ -715,6 +771,7 @@
   }
   function onInput(e) {
     var t = e.target;
+    if (t.id === "allSearch") { ui.allQ = t.value; document.getElementById("allList").innerHTML = allListHtml(); return; }
     if (t.id === "recipeSearch") { ui.q = t.value; var tmp = document.createElement("div"); var html = viewRecipes(); tmp.innerHTML = html; document.getElementById("recipeList").innerHTML = tmp.querySelector("#recipeList").innerHTML; }
     if (t.type === "range" && t.dataset.set === "ratio") { var l = document.getElementById("ratioLbl"); if (l) l.textContent = t.value + "% Jamaican · " + (100 - t.value) + "% other healthy cuisines"; }
   }
@@ -826,6 +883,7 @@
   modalEl.addEventListener("click", function (e) { if (e.target === modalEl) closeModal(); else onClick(e); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modalEl.hidden) closeModal(); });
   window.addEventListener("hashchange", function () { closeModal(); render(); });
+  viewEl.addEventListener("toggle", function (e) { var d = e.target; if (d && d.dataset && d.dataset.grp && !ui.allQ) ui.allOpen[d.dataset.grp] = d.open; }, true);
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") schedulePull("focus"); });
   window.addEventListener("online", function () { if (MenuSync.getToken()) runSync("online"); });
   if (!location.hash) location.hash = "#/menu"; else render();
