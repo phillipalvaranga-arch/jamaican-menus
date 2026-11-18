@@ -1,4 +1,4 @@
-const C = 'jmenus-v1';
+const C = 'jmenus-v2';
 const F = [
   './',
   'index.html',

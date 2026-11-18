@@ -173,8 +173,11 @@ table.ref th{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-
   .view{padding:16px 14px 96px}
   .g2,.g3{grid-template-columns:1fr}
   h1{font-size:1.45rem}
-  .slot{flex-wrap:wrap}
-  .slot .acts{width:100%;justify-content:flex-end}
+  .slot{align-items:flex-start}
+  .slot .acts{flex-direction:column}
+  .slot .emo{width:44px;height:44px;flex-basis:44px;font-size:1.6rem}
+  .hero:after{width:150px;height:150px;right:-70px;top:-70px;opacity:.16}
+  .hero .row .btn{flex:1 1 auto}
   .rhead .big{width:64px;height:64px;flex-basis:64px;font-size:2.4rem}
   .week{grid-template-columns:1fr}
 }
