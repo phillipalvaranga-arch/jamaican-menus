@@ -17,11 +17,22 @@
   };
   var SLOTS = [
     { k: "b", label: "Breakfast", ico: "🌅" },
+    { k: "bside", label: "Breakfast side", ico: "🥗", main: "b" },
     { k: "l", label: "Lunch", ico: "☀️" },
+    { k: "lside", label: "Lunch side", ico: "🥗", main: "l" },
+    { k: "lside2", label: "Lunch side 2", ico: "🥗", main: "l" },
     { k: "d", label: "Dinner", ico: "🌙" },
-    { k: "side", label: "Dinner side", ico: "🥗" },
+    { k: "side", label: "Dinner side", ico: "🥗", main: "d" },
+    { k: "side2", label: "Dinner side 2", ico: "🥗", main: "d" },
     { k: "s", label: "Snack", ico: "🍎" }
   ];
+  /* Sides belong to a main: breakfast can have 1, lunch and dinner up to 2. The generator adds 1 to breakfast and lunch, 2 to dinner. */
+  var MAINS = SLOTS.filter(function (s) { return !s.main; });
+  var SIDE_OF = { b: ["bside"], l: ["lside", "lside2"], d: ["side", "side2"] };
+  var GEN_SIDES = { b: 1, l: 1, d: 2 };
+  var MEAL_LABEL = { b: "Breakfast", l: "Lunch", d: "Dinner", side: "Side", s: "Snack" };
+  function slotDef(k) { return SLOTS.filter(function (s) { return s.k === k; })[0]; }
+  function mainOf(k) { var s = slotDef(k); return s && s.main || null; }
   var DEFAULT_LIKES = ["Callaloo", "Collard greens", "Cabbage", "Fish", "Jamaican sprat", "Parrot fish", "Okra", "Saltfish (salted dried cod)", "Snapper", "Ackee", "Breadfruit"];
   var DEFAULT_NEVER = ["Pork", "Ham", "Bacon", "Lard", "Pig tail", "Tripe", "Cow foot"];
   var SYN = {
@@ -41,6 +52,7 @@
     { id: "saved", label: "Saved menus", ico: "🗂️", group: "Plan" },
     { id: "shopping", label: "Shopping list", ico: "🛒", group: "Plan" },
     { id: "recipes", label: "Recipes", ico: "📖", group: "Cook" },
+    { id: "sides", label: "Sides", ico: "🥗", group: "Cook" },
     { id: "foods", label: "My foods", ico: "💚", group: "Cook" },
     { id: "health", label: "Heart health", ico: "❤️", group: "Learn" },
     { id: "sync", label: "Sync", ico: "⟳", group: "More" },
@@ -173,16 +185,76 @@
   function todayIdx() { var ws = weekStart(); if (!ws) return -1; var diff = Math.round((todayDate() - parseYmd(ws)) / 86400000); return diff >= 0 && diff < 7 ? diff : -1; }
   function slotId(d, k) { return d + "-" + k; }
   function planItem(d, k) { return find("plan", slotId(d, k)); }
-  function isSabbathSlot(date, k) { var wd = date.getDay(); return wd === 6 || (wd === 5 && (k === "d" || k === "side")); }
+  function isSabbathSlot(date, k) { var wd = date.getDay(); return wd === 6 || (wd === 5 && (k === "d" || mainOf(k) === "d")); }
   function candidates(k, date, exceptId) {
     var cu = S("cuisines") || [];
-    var pool = RECIPES.filter(function (r) { return r.m.indexOf(k) >= 0 && !blockReason(r) && (r.c === "jm" || cu.indexOf(r.c) >= 0); });
+    var side = !!mainOf(k) || k === "side", mk = side ? "side" : k;
+    var pool = RECIPES.filter(function (r) { return r.m.indexOf(mk) >= 0 && !blockReason(r) && (side || r.c === "jm" || cu.indexOf(r.c) >= 0); });
     if (S("sabbath") && date && isSabbathSlot(date, k)) { var pp = pool.filter(function (r) { return r.tags.indexOf("prep") >= 0; }); if (pp.length) pool = pp; }
     if (exceptId && pool.length > 1) pool = pool.filter(function (r) { return r.id !== exceptId; });
     return pool;
   }
-  var RICE_PAIR = ["brown-stew-chicken", "jerk-chicken", "baked-chicken-jm", "roast-chicken", "curry-chicken", "escovitch-snapper", "brown-stew-parrot", "jerk-fish", "curry-chickpea-pumpkin", "oven-sprat"];
-  function pickRecipe(k, date, used, exceptId, dayIds, dinnerId) {
+  /* ---------- sides ---------- */
+  function isStarch(id) { return D.STARCH.indexOf(id) >= 0; }
+  function hasSides(mainId) { return !!(mainId && D.SIDES[mainId]); }
+  function sideSuggest(mainId) { return (D.SIDES[mainId] || []).map(function (x) { return { id: x.replace("*", ""), trad: x.charAt(0) === "*" }; }).filter(function (o) { return recipeById(o.id); }); }
+  function isTraditional(mainId, sideId) { return sideSuggest(mainId).some(function (o) { return o.id === sideId && o.trad; }); }
+  function goesWith(sideId) { return RECIPES.filter(function (r) { return sideSuggest(r.id).some(function (o) { return o.id === sideId; }); }); }
+  function pickSide(k, date, used, exceptId, dayIds, mainId, otherId) {
+    if (!hasSides(mainId)) return null;
+    var all = candidates(k, date);
+    var sug = sideSuggest(mainId).map(function (o) { var r = recipeById(o.id); return r && !blockReason(r) && r.id !== otherId ? { r: r, trad: o.trad } : null; }).filter(Boolean);
+    var pool = sug;
+    if (otherId) {
+      var wantStarch = !isStarch(otherId);
+      var g = pool.filter(function (o) { return isStarch(o.r.id) === wantStarch; });
+      if (g.length) pool = g;
+      else if (!wantStarch) { var veg = all.filter(function (r) { return !isStarch(r.id) && r.id !== otherId; }).map(function (r) { return { r: r, trad: false }; }); if (veg.length) pool = veg; }
+    }
+    if (!pool.length) pool = all.filter(function (r) { return r.id !== otherId; }).map(function (r) { return { r: r, trad: false }; });
+    if (exceptId && pool.length > 1) pool = pool.filter(function (o) { return o.r.id !== exceptId; });
+    if (dayIds) { var nd = pool.filter(function (o) { return dayIds.indexOf(o.r.id) < 0; }); if (nd.length) pool = nd; }
+    if (!pool.length) return null;
+    var sab = S("sabbath") && date && isSabbathSlot(date, k), useLikes = S("useLikes");
+    var weights = pool.map(function (o) {
+      var r = o.r, w = 1;
+      if (o.trad) w += 1.5;
+      if (useLikes) w += 1.2 * Math.min(2, likeHits(r).length);
+      if (isFav(r.id)) w += 1;
+      if (r.tags.indexOf("bp") >= 0) w += 0.4;
+      if (sab && r.tags.indexOf("prep") >= 0) w *= 2;
+      return w / (1 + 2 * (used[r.id] || 0));
+    });
+    var total = weights.reduce(function (a, b) { return a + b; }, 0), x = Math.random() * total;
+    for (var i = 0; i < pool.length; i++) { x -= weights[i]; if (x <= 0) return pool[i].r; }
+    return pool[pool.length - 1].r;
+  }
+  /* Fill the unlocked sides of one main. acc = { get(k), set(k, id), del(k), locked(k) } for the plan or a saved menu. */
+  function fillSides(acc, mainK, date, used, dayIds, onlyEmpty) {
+    var mainId = acc.get(mainK), keys = SIDE_OF[mainK] || [];
+    keys.forEach(function (k, i) {
+      var cur = acc.get(k), curR = cur && recipeById(cur);
+      if (acc.locked(k) && curR && !blockReason(curR)) return;
+      if (onlyEmpty && curR && !blockReason(curR)) return;
+      if (i >= GEN_SIDES[mainK] || !hasSides(mainId)) { if (cur) acc.del(k); return; }
+      var other = i > 0 ? acc.get(keys[0]) : (acc.locked(keys[1]) ? acc.get(keys[1]) : null);
+      var r = pickSide(k, date, used, cur, dayIds, mainId, other);
+      if (!r) { if (cur) acc.del(k); return; }
+      acc.set(k, r.id); used[r.id] = (used[r.id] || 0) + 1; if (dayIds) dayIds.push(r.id);
+    });
+  }
+  function planAcc(d) {
+    return {
+      get: function (k) { var p = planItem(d, k); return p && p.recipeId || null; },
+      set: function (k, id) { var p = planItem(d, k); upsert("plan", { id: slotId(d, k), recipeId: id, locked: false, createdAt: p && p.createdAt }); },
+      del: function (k) { if (planItem(d, k)) removeItem("plan", slotId(d, k)); },
+      locked: function (k) { var p = planItem(d, k); return !!(p && p.locked); }
+    };
+  }
+  function menuAcc(slots, d) {
+    return { get: function (k) { return slots[d + "-" + k] || null; }, set: function (k, id) { slots[d + "-" + k] = id; }, del: function (k) { delete slots[d + "-" + k]; }, locked: function () { return false; } };
+  }
+  function pickRecipe(k, date, used, exceptId, dayIds) {
     var pool = candidates(k, date, exceptId); if (!pool.length) return null;
     if (dayIds) { var nd = pool.filter(function (r) { return dayIds.indexOf(r.id) < 0; }); if (nd.length) pool = nd; }
     var wantJm = Math.random() * 100 < S("ratio");
@@ -196,7 +268,6 @@
       if (r.na === "watch") w *= 0.7;
       if (r.tags.indexOf("treat") >= 0) w *= 0.35;
       w = w / (1 + 3 * (used[r.id] || 0));
-      if (k === "side" && r.id === "rice-and-peas" && dinnerId && RICE_PAIR.indexOf(dinnerId) >= 0) w *= 6;
       return w;
     });
     var total = weights.reduce(function (a, b) { return a + b; }, 0), x = Math.random() * total;
@@ -212,19 +283,28 @@
     dayList.forEach(function (d) { SLOTS.forEach(function (s) { var p = planItem(d, s.k); if (p && !p.locked && p.recipeId) used[p.recipeId] = Math.max(0, (used[p.recipeId] || 1) - 1); }); });
     dayList.forEach(function (d) {
       var dayIds = SLOTS.map(function (s) { var p = planItem(d, s.k); return p && p.locked ? p.recipeId : null; }).filter(Boolean);
-      SLOTS.forEach(function (s) {
+      MAINS.forEach(function (s) {
         var p = planItem(d, s.k);
-        if (p && p.locked && p.recipeId && recipeById(p.recipeId) && !blockReason(recipeById(p.recipeId))) return;
-        var dn = s.k === "side" ? (planItem(d, "d") || {}).recipeId : null;
-        var r = pickRecipe(s.k, days[d], used, p && p.recipeId, dayIds, dn);
-        if (!r) return;
-        used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id);
-        upsert("plan", { id: slotId(d, s.k), recipeId: r.id, locked: false, createdAt: p && p.createdAt });
+        if (!(p && p.locked && p.recipeId && recipeById(p.recipeId) && !blockReason(recipeById(p.recipeId)))) {
+          var r = pickRecipe(s.k, days[d], used, p && p.recipeId, dayIds);
+          if (r) { used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id); upsert("plan", { id: slotId(d, s.k), recipeId: r.id, locked: false, createdAt: p && p.createdAt }); }
+        }
+        if (SIDE_OF[s.k]) fillSides(planAcc(d), s.k, days[d], used, dayIds);
       });
     });
     save();
   }
-  function ensureWeek() { if (!weekStart() || todayIdx() < 0) startNewWeek(true); }
+  function ensureWeek() {
+    if (!weekStart() || todayIdx() < 0) startNewWeek(true);
+    if (!S("sidesV1")) { /* one-time: add sides to a week made before sides existed */
+      var days = weekDays(), used = usedCounts();
+      days.forEach(function (date, d) {
+        var dayIds = SLOTS.map(function (s) { var p = planItem(d, s.k); return p && p.recipeId; }).filter(Boolean);
+        MAINS.forEach(function (s) { if (SIDE_OF[s.k]) fillSides(planAcc(d), s.k, date, used, dayIds, true); });
+      });
+      setS("sidesV1", true);
+    }
+  }
   function startNewWeek(quiet) {
     var ws = ymd(sundayOf(todayDate()));
     state.settings.weekStart = ws; state.settingsTimes.weekStart = nowISO();
@@ -235,9 +315,12 @@
   function swapSlot(d, k) {
     var days = weekDays(), p = planItem(d, k), used = usedCounts();
     var dayIds = SLOTS.map(function (s) { var q = planItem(d, s.k); return q && s.k !== k ? q.recipeId : null; }).filter(Boolean);
-    var r = pickRecipe(k, days[d], used, p && p.recipeId, dayIds, k === "side" ? (planItem(d, "d") || {}).recipeId : null);
-    if (!r) { toast("No other recipe fits your filters for this meal."); return; }
+    var mk = mainOf(k), r;
+    if (mk) { var keys = SIDE_OF[mk], other = planItem(d, keys[keys.indexOf(k) === 0 ? 1 : 0]); r = pickSide(k, days[d], used, p && p.recipeId, dayIds, (planItem(d, mk) || {}).recipeId, other && other.recipeId); }
+    else r = pickRecipe(k, days[d], used, p && p.recipeId, dayIds);
+    if (!r) { toast(mk ? "No other side fits this meal and your filters." : "No other recipe fits your filters for this meal."); return; }
     upsert("plan", { id: slotId(d, k), recipeId: r.id, locked: false, createdAt: p && p.createdAt });
+    if (SIDE_OF[k]) fillSides(planAcc(d), k, days[d], usedCounts(), dayIds.filter(function (id) { return SIDE_OF[k].every(function (sk) { return (planItem(d, sk) || {}).recipeId !== id; }); }).concat([r.id]));
     save(); toast("Swapped: " + r.n);
   }
   function toggleLock(d, k) { var p = planItem(d, k); if (!p) return; p.locked = !p.locked; upsert("plan", p); save(); toast(p.locked ? "Locked — Shuffle will keep it" : "Unlocked"); }
@@ -250,16 +333,24 @@
     return t.map(function (x) { return '<span class="pill ' + x + '">' + esc(D.TAGS[x]) + "</span>"; }).join("");
   }
   function sodiumLabel(r) { return { low: "Lower sodium", mod: "Moderate sodium — watch the sauces", watch: "Higher sodium — desalt the saltfish well" }[r.na]; }
+  function pickSidesBtn(ctx, d, k, mainId, cls) {
+    if (!SIDE_OF[k] || !hasSides(mainId)) return "";
+    return '<button class="btn small side-pick no-print' + (cls ? " " + cls : "") + '" data-act="pickSides" data-ctx="' + ctx + '" data-d="' + d + '" data-k="' + k + '">🥗 Pick my sides</button>';
+  }
+  function sideBadge(mainId, sideId) { return isTraditional(mainId, sideId) ? '<span class="pill trad" title="A well-known traditional Jamaican pairing">Traditional</span>' : ""; }
   function slotCard(d, s, date) {
     var p = planItem(d, s.k), r = p && recipeById(p.recipeId);
+    if (s.main && !r) return "";
     if (!r) return '<div class="slot"><div class="emo">' + s.ico + '</div><div class="body"><div class="lbl">' + esc(s.label) + '</div><div class="muted">Nothing fits your filters for this meal.</div></div></div>';
     var br = blockReason(r), likes = likeHits(r).map(function (f) { return f.name.replace(/\s*\(.*\)/, ""); });
     var sab = S("sabbath") && date && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0;
-    return '<div class="slot' + (p.locked ? " locked" : "") + (br ? " bad" : "") + '">' +
-      '<div class="emo">' + r.e + '</div><div class="body"><div class="lbl">' + s.ico + " " + esc(s.label) + (sab ? ' · <span style="color:var(--gold-ink)">Cook Friday before sunset</span>' : "") + '</div>' +
+    var mainId = s.main ? (planItem(d, s.main) || {}).recipeId : null;
+    return '<div class="slot' + (s.main ? " sideslot" : "") + (p.locked ? " locked" : "") + (br ? " bad" : "") + '">' +
+      '<div class="emo">' + r.e + '</div><div class="body"><div class="lbl">' + s.ico + " " + esc(s.main ? "Side" : s.label) + (sab ? ' · <span style="color:var(--gold-ink)">Cook Friday before sunset</span>' : "") + '</div>' +
       '<a class="name" href="#/recipe/' + r.id + '">' + esc(r.n) + '</a>' +
-      '<div class="tags"><span class="pill cuisine">' + esc(D.CUISINES[r.c]) + "</span>" + tagPills(r, 3) + (likes.length ? '<span class="pill" title="Foods you like">💚 ' + esc(likes.slice(0, 2).join(", ")) + "</span>" : "") + "</div>" +
+      '<div class="tags">' + (s.main ? sideBadge(mainId, r.id) : '<span class="pill cuisine">' + esc(D.CUISINES[r.c]) + "</span>") + tagPills(r, s.main ? 2 : 3) + (likes.length && !s.main ? '<span class="pill" title="Foods you like">💚 ' + esc(likes.slice(0, 2).join(", ")) + "</span>" : "") + "</div>" +
       (br ? '<div class="small" style="color:var(--bad);font-weight:650">⚠ ' + esc(br) + " — tap swap</div>" : "") +
+      (s.main ? "" : pickSidesBtn("plan", d, s.k, r.id)) +
       '</div><div class="acts no-print">' +
       '<button class="sq' + (p.locked ? " on" : "") + '" data-act="lock" data-d="' + d + '" data-k="' + s.k + '" title="' + (p.locked ? "Unlock" : "Lock this meal") + '" aria-label="' + (p.locked ? "Unlock" : "Lock") + " " + esc(s.label) + '">' + (p.locked ? "🔒" : "🔓") + "</button>" +
       '<button class="sq" data-act="swap" data-d="' + d + '" data-k="' + s.k + '" title="Swap this meal" aria-label="Swap ' + esc(s.label) + '">⇄</button>' +
@@ -285,7 +376,7 @@
     ensureWeek();
     var ti = todayIdx(), days = weekDays(), date = days[ti];
     var sab = date.getDay() === 6;
-    return '<div class="hero"><p class="kicker">' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + '</p><h1>Today\'s healthy Jamaican menu</h1><p>Heart-healthy, lower in salt, and never any pork, tripe or cow foot. Tap a dish for the recipe, 🔓 to lock it, or ⇄ to swap it.</p>' +
+    return '<div class="hero"><p class="kicker">' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + '</p><h1>Today\'s healthy Jamaican menu</h1><p>Heart-healthy, lower in salt, and never any pork, tripe or cow foot. Each main comes with sides — tap 🥗 Pick my sides to change them. Tap a dish for the recipe, 🔓 to lock it, or ⇄ to swap it.</p>' +
       '<div class="row mt"><button class="btn gold" data-act="shuffleDay" data-d="' + ti + '">🔀 Shuffle today</button><button class="btn" data-act="shuffleWeek" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">🔀 Shuffle whole week</button><a class="btn" href="#/week" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25)">📅 See the week</a></div>' +
       '<div class="row" style="margin-top:8px"><button class="btn save-later" data-act="saveLaterDay">+ Save for later</button><button class="btn save-later" data-act="addMenu">+ Add a menu</button></div>' +
       '<a class="btn show-all" href="#/all">📚 Show all menus</a></div>' +
@@ -298,7 +389,7 @@
   function viewWeek() {
     ensureWeek();
     var days = weekDays(), ti = todayIdx();
-    return '<div class="page-head row between"><div><p class="kicker">Week of ' + esc(dateLabel(days[0])) + " – " + esc(dateLabel(days[6])) + '</p><h1>Weekly menu</h1><p class="lead">Seven days of breakfast, lunch, dinner, a side and a snack. Locked meals (🔒) stay put when you shuffle.</p></div>' +
+    return '<div class="page-head row between"><div><p class="kicker">Week of ' + esc(dateLabel(days[0])) + " – " + esc(dateLabel(days[6])) + '</p><h1>Weekly menu</h1><p class="lead">Seven days of breakfast, lunch, dinner and a snack, with sides for each main. Locked meals (🔒) stay put when you shuffle.</p></div>' +
       '<div class="row no-print"><button class="btn primary" data-act="shuffleWeek">🔀 Shuffle week</button><a class="btn" href="#/shopping">🛒 Shopping list</a><button class="btn" data-act="print">🖨 Print</button><button class="btn" data-act="newWeek">New week</button></div></div>' +
       '<div class="row no-print" style="margin:-4px 0 14px"><button class="btn gold" data-act="saveLaterWeek">+ Save for later</button><button class="btn" data-act="addMenu">+ Add a menu</button><a class="btn primary" href="#/all">📚 Show all menus</a><a class="btn ghost" href="#/saved">🗂️ Saved menus (' + state.savedMenus.length + ')</a></div>' +
       '<div class="week">' + days.map(function (date, d) {
@@ -306,20 +397,28 @@
         return '<div class="day' + (d === ti ? " today" : "") + (sab && d !== ti ? " sabbath" : "") + '"><div class="dh"><b>' + esc(dayName(date)) + " · " + esc(dateLabel(date)) + (sab ? " · Sabbath" : "") + (d === ti ? " · Today" : "") + '</b><button class="btn small ghost no-print" data-act="shuffleDay" data-d="' + d + '" title="Shuffle this day" style="color:inherit;border-color:currentColor">🔀</button></div>' +
           SLOTS.map(function (s) {
             var p = planItem(d, s.k), r = p && recipeById(p.recipeId), br = r ? blockReason(r) : "";
+            if (s.main && !r) return "";
             var prep = r && S("sabbath") && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0;
-            return '<div class="mi"><span class="e">' + (r ? r.e : s.ico) + '</span><div class="t"><small>' + esc(s.label) + (prep ? " · cook Friday" : "") + "</small>" + (r ? '<a href="#/recipe/' + r.id + '">' + esc(r.n) + "</a>" + (br ? '<div class="small" style="color:var(--bad)">⚠ ' + esc(br) + "</div>" : "") : '<span class="muted">—</span>') + "</div>" +
-              (r ? '<button class="sq' + (p.locked ? " on" : "") + ' no-print" data-act="lock" data-d="' + d + '" data-k="' + s.k + '" aria-label="Lock">' + (p.locked ? "🔒" : "🔓") + '</button><button class="sq no-print" data-act="swap" data-d="' + d + '" data-k="' + s.k + '" aria-label="Swap">⇄</button>' : "") + "</div>";
+            return '<div class="mi' + (s.main ? " sidemi" : "") + '"><span class="e">' + (r ? r.e : s.ico) + '</span><div class="t"><small>' + esc(s.main ? "+ Side" : s.label) + (prep ? " · cook Friday" : "") + (s.main && r && isTraditional((planItem(d, s.main) || {}).recipeId, r.id) ? " · traditional" : "") + "</small>" + (r ? '<a href="#/recipe/' + r.id + '">' + esc(r.n) + "</a>" + (br ? '<div class="small" style="color:var(--bad)">⚠ ' + esc(br) + "</div>" : "") : '<span class="muted">—</span>') + "</div>" +
+              (r ? '<button class="sq' + (p.locked ? " on" : "") + ' no-print" data-act="lock" data-d="' + d + '" data-k="' + s.k + '" aria-label="Lock">' + (p.locked ? "🔒" : "🔓") + '</button><button class="sq no-print" data-act="swap" data-d="' + d + '" data-k="' + s.k + '" aria-label="Swap">⇄</button>' : "") +
+              (r && !s.main && SIDE_OF[s.k] && hasSides(r.id) ? '<button class="sq no-print" data-act="pickSides" data-ctx="plan" data-d="' + d + '" data-k="' + s.k + '" title="Pick my sides" aria-label="Pick sides for ' + esc(s.label) + '">🥗</button>' : "") + "</div>";
           }).join("") + "</div>";
       }).join("") + "</div>" +
       '<div class="mt no-print">' + optionsCard() + "</div>" + disclaimer();
+  }
+  function printCell(get, s, date) {
+    var r = recipeById(get(s.k));
+    var sides = (SIDE_OF[s.k] || []).map(function (k) { return recipeById(get(k)); }).filter(Boolean);
+    return "<td>" + (r ? r.e + " " + esc(r.n) + (date && S("sabbath") && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0 ? "<br><small>cook Friday</small>" : "") : "—") +
+      sides.map(function (x) { return '<br><small class="pside">+ ' + x.e + " " + esc(x.n) + "</small>"; }).join("") + "</td>";
   }
   function viewPrint() {
     ensureWeek();
     var days = weekDays();
     return '<div class="row between no-print" style="margin-bottom:12px"><a class="btn" href="#/week">← Back</a><button class="btn primary" data-act="doPrint">🖨 Print this page</button></div>' +
       '<h1>Weekly Jamaican Menu</h1><p class="muted">Week of ' + esc(dateLabel(days[0])) + " – " + esc(dateLabel(days[6])) + " · " + S("servings") + " servings per meal · No pork, tripe or cow foot" + (S("clean") ? " · Biblically clean" : "") + "</p>" +
-      '<table class="printweek"><thead><tr><th>Day</th>' + SLOTS.map(function (s) { return "<th>" + esc(s.label) + "</th>"; }).join("") + "</tr></thead><tbody>" +
-      days.map(function (date, d) { return "<tr><th>" + esc(dayName(date)) + "<br><small>" + esc(dateLabel(date)) + "</small></th>" + SLOTS.map(function (s) { var p = planItem(d, s.k), r = p && recipeById(p.recipeId); return "<td>" + (r ? r.e + " " + esc(r.n) + (S("sabbath") && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0 ? "<br><small>cook Friday</small>" : "") : "—") + "</td>"; }).join("") + "</tr>"; }).join("") +
+      '<table class="printweek"><thead><tr><th>Day</th>' + MAINS.map(function (s) { return "<th>" + esc(s.label) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      days.map(function (date, d) { return "<tr><th>" + esc(dayName(date)) + "<br><small>" + esc(dateLabel(date)) + "</small></th>" + MAINS.map(function (s) { return printCell(function (k) { var p = planItem(d, k); return p && p.recipeId; }, s, date); }).join("") + "</tr>"; }).join("") +
       "</tbody></table><p class=\"small muted mt\">Daily sodium: AHA recommends no more than 2,300 mg a day, ideally no more than 1,500 mg for most adults. Desalt saltfish well before cooking.</p>";
   }
   var ui = { q: "", cuisine: "", meal: "", tag: "", hideChecked: false, allTab: "recipes", allQ: "", allCu: "", allOpen: {}, allShowHidden: false };
@@ -389,7 +488,7 @@
     return '<div class="page-head"><p class="kicker">' + RECIPES.length + ' recipes · mostly Jamaican</p><h1>Recipe library</h1><p class="lead">Every recipe is pork-free, with a tip for cutting the salt. Tap one to see ingredients you can check off as you cook.</p></div>' +
       '<div class="card no-print"><div class="form-grid"><div class="field"><span>Search</span><input type="search" id="recipeSearch" value="' + esc(ui.q) + '" placeholder="Try callaloo, snapper, breadfruit…"></div>' +
       '<div class="field"><span>Cuisine</span><select data-ui="cuisine"><option value="">All cuisines</option>' + Object.keys(D.CUISINES).map(function (c) { return '<option value="' + c + '"' + (ui.cuisine === c ? " selected" : "") + ">" + esc(D.CUISINES[c]) + "</option>"; }).join("") + "</select></div>" +
-      '<div class="field"><span>Meal</span><select data-ui="meal"><option value="">Any meal</option>' + SLOTS.map(function (s) { return '<option value="' + s.k + '"' + (ui.meal === s.k ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join("") + "</select></div></div>" +
+      '<div class="field"><span>Meal</span><select data-ui="meal"><option value="">Any meal</option>' + ["b", "l", "d", "side", "s"].map(function (k) { return '<option value="' + k + '"' + (ui.meal === k ? " selected" : "") + ">" + esc(k === "side" ? "Sides" : MEAL_LABEL[k]) + "</option>"; }).join("") + "</select></div></div>" +
       '<div class="chips">' + tagChips.map(function (t) { return '<button class="chip' + (ui.tag === t[0] ? " on" : "") + '" data-act="rtag" data-t="' + t[0] + '">' + esc(t[1]) + "</button>"; }).join("") + "</div></div>" +
       '<div id="recipeList">' + recipeGrid(shown, hidden) + "</div>" + disclaimer();
   }
@@ -399,6 +498,26 @@
         return '<a class="rc" href="#/recipe/' + r.id + '"><div class="top"><span class="e">' + r.e + "</span><b>" + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b></div><div class="meta">' + esc(D.CUISINES[r.c]) + " · " + r.t + " min · serves " + r.sv + '</div><div class="tags">' + tagPills(r, 4) + "</div></a>";
       }).join("") + "</div>";
   }
+  function sideChip(mainId, x) {
+    return '<a class="chip side-chip" href="#/recipe/' + x.id + '"><span>' + x.e + "</span> " + esc(x.n) + (mainId && isTraditional(mainId, x.id) ? ' <span class="pill trad">Traditional</span>' : "") + "</a>";
+  }
+  function sidesCard(r) {
+    if (hasSides(r.id)) {
+      var list = sideSuggest(r.id).map(function (o) { return recipeById(o.id); });
+      var ok = list.filter(function (x) { return !blockReason(x); }), hid = list.length - ok.length;
+      var anyTrad = ok.some(function (x) { return isTraditional(r.id, x.id); });
+      return '<div class="card sides-card"><h2>🥗 Suggested sides</h2><p class="help">' + (anyTrad ? "“Traditional” marks a well-known Jamaican pairing; the others are suggested sides that go well with it. " : "Sides that go well with this dish. ") + 'Tap one to open its recipe.</p><div class="chips">' +
+        ok.map(function (x) { return sideChip(r.id, x); }).join("") + "</div>" + (hid ? '<p class="help">' + hid + " hidden by your never-eat list, Biblically clean filter or exclusions.</p>" : "") + "</div>";
+    }
+    if (r.m.indexOf("side") >= 0) {
+      var mains = goesWith(r.id).filter(function (x) { return !blockReason(x); });
+      if (!mains.length) return "";
+      return '<div class="card sides-card"><h2>🍽 Goes well with</h2><p class="help">Main dishes that suggest this side. Tap one to open it.</p><div class="chips">' +
+        mains.slice(0, 8).map(function (x) { return '<a class="chip side-chip" href="#/recipe/' + x.id + '"><span>' + x.e + "</span> " + esc(x.n) + (isTraditional(x.id, r.id) ? ' <span class="pill trad">Traditional</span>' : "") + "</a>"; }).join("") + "</div></div>";
+    }
+    if (isSoup(r)) return '<div class="card sides-card"><p class="help" style="margin:0">🍲 This soup is a full meal on its own — no side needed.</p></div>';
+    return "";
+  }
   function viewRecipe(id) {
     var r = recipeById(id);
     if (!r) return '<div class="card"><h2>Recipe not found</h2><a href="#/recipes">Back to recipes</a></div>';
@@ -407,10 +526,10 @@
     var ings = r.ing.map(parseIng);
     var anyChecked = ings.some(function (x, i) { return getFlag("cookChecks", r.id, String(i)); });
     return '<div class="row between no-print" style="margin-bottom:10px"><a class="btn small" href="#/recipes">← Recipes</a><div class="row"><button class="btn small' + (isFav(r.id) ? " on" : "") + '" data-act="fav" data-id="' + r.id + '">' + (isFav(r.id) ? "★ Favorite" : "☆ Add to favorites") + '</button><button class="btn small" data-act="doPrint">🖨 Print</button></div></div>' +
-      '<div class="card"><div class="rhead"><div class="big">' + r.e + '</div><div><p class="kicker">' + esc(D.CUISINES[r.c]) + " · " + r.m.map(function (m) { return SLOTS.filter(function (s) { return s.k === m; })[0].label; }).join(", ") + "</p><h1>" + esc(r.n) + '</h1><div class="tags">' + tagPills(r) + "</div></div></div>" +
+      '<div class="card"><div class="rhead"><div class="big">' + r.e + '</div><div><p class="kicker">' + esc(D.CUISINES[r.c]) + " · " + r.m.map(function (m) { return MEAL_LABEL[m] || m; }).join(", ") + "</p><h1>" + esc(r.n) + '</h1><div class="tags">' + tagPills(r) + "</div></div></div>" +
       '<div class="facts"><span>⏱ <b>' + r.t + ' min</b></span><span>🍽 Recipe makes <b>' + r.sv + '</b></span><span class="no-print stepper">Cook for <button class="btn small" data-act="rserv" data-id="' + r.id + '" data-v="-1" aria-label="Fewer">−</button><b>' + serv + '</b><button class="btn small" data-act="rserv" data-id="' + r.id + '" data-v="1" aria-label="More">+</button> servings</span>' + (likes.length ? "<span>💚 Has " + esc(likes.map(function (f) { return f.name.replace(/\s*\(.*\)/, ""); }).join(", ")) + "</span>" : "") + "</div>" +
       (br ? '<div class="note warn">⚠ ' + esc(br) + ". The menu maker will not pick this recipe.</div>" : "") +
-      "</div>" +
+      "</div>" + sidesCard(r) +
       '<div class="card"><div class="sodium"><div style="font-size:1.6rem">🧂</div><div><b>' + esc(sodiumLabel(r)) + '</b><div class="meter ' + r.na + '"><i></i><i></i><i></i></div><p style="margin-top:8px">' + esc(r.tip) + '</p><p class="help">The sodium level is this app\'s guide based on the ingredients, not a lab measurement. Check package labels for exact numbers.</p></div></div>' +
       (r.tags.indexOf("desalt") >= 0 ? '<div class="note gold"><b>Desalting saltfish:</b> ' + esc(D.DESALT) + "</div>" : "") +
       (r.note ? '<div class="note warn">' + esc(r.note) + (r.nsrc ? " " + src(r.nsrc[0], r.nsrc[1]) : r.tags.indexOf("ackee") >= 0 ? " " + src("FDA", LINKS.fdaAckee) : "") + "</div>" : "") + "</div>" +
@@ -528,6 +647,61 @@
       '<div class="field"><span>Notes (optional)</span><textarea name="notes" maxlength="1000" placeholder="e.g. for the family visit, buy snapper on Friday"></textarea></div>' +
       '<div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="closeModal">Cancel</button><button class="btn primary">Save menu</button></div></form>');
   }
+  /* ---------- Pick my sides ---------- */
+  function sidesCtx(ctx, d) {
+    if (ctx === "plan") return { acc: planAcc(d), plan: true, date: weekDays()[d] };
+    var m = find("savedMenus", ctx); if (!m) return null; m.slots = m.slots || {};
+    return { acc: menuAcc(m.slots, d), menu: m, date: menuDayDate(m, d) };
+  }
+  function pickSidesDialog(ctx, d, k) {
+    var c = sidesCtx(ctx, d); if (!c) return;
+    var mainId = c.acc.get(k), main = recipeById(mainId); if (!main) return;
+    var keys = SIDE_OF[k], max = keys.length, chosen = keys.map(function (x) { return c.acc.get(x); }).filter(Boolean);
+    var sug = sideSuggest(mainId).map(function (o) { return recipeById(o.id); });
+    var sugOk = sug.filter(function (r) { return !blockReason(r); }), hid = sug.length - sugOk.length;
+    var sugIds = sugOk.map(function (r) { return r.id; });
+    var others = RECIPES.filter(function (r) { return r.m.indexOf("side") >= 0 && !blockReason(r) && sugIds.indexOf(r.id) < 0; });
+    var box = function (r, trad) { return '<label class="sidebox"><input type="checkbox" name="side" value="' + r.id + '"' + (chosen.indexOf(r.id) >= 0 ? " checked" : "") + '><span class="e">' + r.e + '</span><span class="n">' + esc(r.n) + (trad ? ' <span class="pill trad">Traditional</span>' : "") + "</span></label>"; };
+    var otherChosen = others.some(function (r) { return chosen.indexOf(r.id) >= 0; });
+    openModal('<h2>🥗 Pick my sides</h2><p class="help">For <b>' + main.e + " " + esc(main.n) + "</b>. Choose up to " + max + (max > 1 ? " sides" : " side") + ". “Traditional” marks a well-known Jamaican pairing; the rest are suggested sides.</p>" +
+      '<form data-modal="sides" data-ctx="' + esc(ctx) + '" data-d="' + d + '" data-k="' + k + '" data-max="' + max + '"><div class="sidelist">' + sugOk.map(function (r) { return box(r, isTraditional(mainId, r.id)); }).join("") + "</div>" +
+      (hid ? '<p class="help">' + hid + " suggested side" + (hid > 1 ? "s are" : " is") + " hidden by your never-eat list, Biblically clean filter or exclusions.</p>" : "") +
+      "<details" + (otherChosen ? " open" : "") + '><summary class="help" style="cursor:pointer"><b>Other sides (' + others.length + ")</b></summary><div class=\"sidelist\">" + others.map(function (r) { return box(r, false); }).join("") + "</div></details>" +
+      '<div class="row" style="justify-content:space-between;margin-top:12px"><button type="button" class="btn" data-act="autoSides" data-ctx="' + esc(ctx) + '" data-d="' + d + '" data-k="' + k + '">🔀 Pick for me</button><div class="row"><button type="button" class="btn" data-act="closeModal">Cancel</button><button class="btn primary">Save sides</button></div></div></form>');
+  }
+  function saveSides(ctx, d, k, ids) {
+    var c = sidesCtx(ctx, d); if (!c) return;
+    SIDE_OF[k].forEach(function (key, i) {
+      if (ids[i]) { if (c.plan) { var p = planItem(d, key); upsert("plan", { id: slotId(d, key), recipeId: ids[i], locked: true, createdAt: p && p.createdAt }); } else c.acc.set(key, ids[i]); }
+      else c.acc.del(key);
+    });
+    if (c.menu) upsert("savedMenus", c.menu);
+    save();
+  }
+  function autoSides(ctx, d, k) {
+    var c = sidesCtx(ctx, d); if (!c) return;
+    var used = c.plan ? usedCounts() : {};
+    SIDE_OF[k].forEach(function (key) { var p = c.plan && planItem(d, key); if (p && p.locked) { p.locked = false; upsert("plan", p); } });
+    fillSides(c.acc, k, c.date, used, [c.acc.get(k)]);
+    if (c.menu) upsert("savedMenus", c.menu);
+    save();
+  }
+  function viewSides() {
+    var all = RECIPES.filter(function (r) { return r.m.indexOf("side") >= 0; });
+    var shown = all.filter(function (r) { return !blockReason(r); }), hidden = all.length - shown.length;
+    var grp = function (title, list) {
+      return '<h2 class="mt" style="margin-top:20px">' + title + ' <span class="pill">' + list.length + '</span></h2><div class="recipes">' + list.map(function (r) {
+        var gw = goesWith(r.id).filter(function (x) { return !blockReason(x); });
+        return '<a class="rc" href="#/recipe/' + r.id + '"><div class="top"><span class="e">' + r.e + "</span><b>" + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b></div><div class="meta">' + esc(D.CUISINES[r.c]) + " · " + r.t + " min · serves " + r.sv + '</div><div class="tags">' + tagPills(r, 3) + "</div>" +
+          (gw.length ? '<div class="small muted" style="margin-top:6px">Goes with: ' + esc(gw.slice(0, 3).map(function (x) { return x.n.replace(/\s*\(.*?\)/g, ""); }).join(", ")) + (gw.length > 3 ? " +" + (gw.length - 3) + " more" : "") + "</div>" : "") + "</a>";
+      }).join("") + "</div>";
+    };
+    return '<div class="page-head"><p class="kicker">' + all.length + ' side recipes</p><h1>🥗 Sides</h1><p class="lead">Coleslaw, potato salad, rice and peas, festival, bammy, breadfruit, vegetables and more. Every main dish suggests 2 to 4 sides, and the menu maker adds them for you — tap 🥗 Pick my sides on any meal to change them.</p></div>' +
+      '<div class="row no-print"><a class="btn" href="#/menu">🍽️ Today\'s menu</a><a class="btn" href="#/week">📅 Weekly menu</a><a class="btn ghost" href="#/all">📚 All menus</a></div>' +
+      grp("🍚 Rice, provisions & breads", shown.filter(function (r) { return isStarch(r.id); })) +
+      grp("🥬 Vegetables & salads", shown.filter(function (r) { return !isStarch(r.id); })) +
+      (hidden ? '<p class="help mt">' + hidden + " hidden by your Biblically clean filter, never-eat list or menu exclusions.</p>" : "") + disclaimer();
+  }
   function addMenuDialog() {
     var tm = ymd(addDays(todayDate(), 1));
     openModal('<h2>+ Add a menu</h2><p class="help">Make your own menu and plan it for a future date. You pick the recipes on the next screen.</p>' +
@@ -543,13 +717,20 @@
     Object.keys(slots).forEach(function (k) { used[slots[k]] = (used[slots[k]] || 0) + 1; });
     for (var d = 0; d < dayCount(m); d++) {
       var dayIds = SLOTS.map(function (s) { return slots[d + "-" + s.k]; }).filter(Boolean);
-      SLOTS.forEach(function (s) {
-        var k = d + "-" + s.k; if (onlyEmpty && slots[k] && recipeById(slots[k]) && !blockReason(recipeById(slots[k]))) return;
-        var r = pickRecipe(s.k, menuDayDate(m, d), used, null, dayIds, s.k === "side" ? slots[d + "-d"] : null); if (!r) return;
-        slots[k] = r.id; used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id);
+      MAINS.forEach(function (s) {
+        var k = d + "-" + s.k, keep = onlyEmpty && slots[k] && recipeById(slots[k]) && !blockReason(recipeById(slots[k]));
+        if (!keep) { var r = pickRecipe(s.k, menuDayDate(m, d), used, null, dayIds); if (r) { slots[k] = r.id; used[r.id] = (used[r.id] || 0) + 1; dayIds.push(r.id); } }
+        if (SIDE_OF[s.k]) fillSides(menuAcc(slots, d), s.k, menuDayDate(m, d), used, dayIds, onlyEmpty);
       });
     }
     m.slots = slots;
+  }
+  function applyMenuDay(m, from, to) {
+    SLOTS.forEach(function (s) {
+      var id = (m.slots || {})[from + "-" + s.k], p = planItem(to, s.k);
+      if (id) upsert("plan", { id: slotId(to, s.k), recipeId: id, locked: true, createdAt: p && p.createdAt });
+      else if (s.main && p && (m.slots || {})[from + "-" + s.main]) removeItem("plan", slotId(to, s.k));
+    });
   }
   function useMenu(m) {
     ensureWeek();
@@ -557,19 +738,21 @@
     if (m.kind === "day") {
       if (m.date) { var idx = Math.round((parseYmd(m.date) - parseYmd(weekStart())) / 86400000); if (idx >= 0 && idx < 7) target = idx; }
       if (!confirm("Use \u201c" + m.name + "\u201d as the menu for " + dayName(days[target]) + ", " + dateLabel(days[target]) + "? It replaces that day's meals (your saved copy stays).")) return false;
-      SLOTS.forEach(function (s) { var id = m.slots["0-" + s.k]; var p = planItem(target, s.k); if (id) upsert("plan", { id: slotId(target, s.k), recipeId: id, locked: true, createdAt: p && p.createdAt }); });
+      applyMenuDay(m, 0, target);
     } else {
       if (!confirm("Use \u201c" + m.name + "\u201d as this week's menu? It replaces this week's meals (your saved copy stays).")) return false;
-      for (var d = 0; d < 7; d++) SLOTS.forEach(function (s) { var id = m.slots[d + "-" + s.k]; var p = planItem(d, s.k); if (id) upsert("plan", { id: slotId(d, s.k), recipeId: id, locked: true, createdAt: p && p.createdAt }); });
+      for (var d = 0; d < 7; d++) applyMenuDay(m, d, d);
     }
     save(); toast("Now using \u201c" + m.name + "\u201d — meals are locked so Shuffle keeps them");
     return true;
   }
+  function mainCount(m) { var n = 0; for (var d = 0; d < dayCount(m); d++) MAINS.forEach(function (s) { if ((m.slots || {})[d + "-" + s.k]) n++; }); return n; }
+  function sideCount(m) { var n = 0; for (var d = 0; d < dayCount(m); d++) SLOTS.forEach(function (s) { if (s.main && (m.slots || {})[d + "-" + s.k]) n++; }); return n; }
   function menuCard(m) {
     var ids = menuRecipeIds(m), bad = ids.filter(function (id) { var r = recipeById(id); return !r || blockReason(r); }).length;
     var first = ids.slice(0, 3).map(function (id) { var r = recipeById(id); return r ? r.e + " " + esc(r.n) : ""; }).filter(Boolean).join(" · ");
     return '<div class="card menu-card"><div class="row between"><div style="min-width:0;flex:1"><p class="kicker">' + esc(menuDateLabel(m)) + " · " + (m.kind === "week" ? "Week" : "Day") + '</p><h2 style="margin:2px 0 4px"><a href="#/saved/' + m.id + '" style="color:inherit;text-decoration:none">' + esc(m.name) + "</a></h2>" +
-      '<p class="small muted" style="margin:0">' + ids.length + " of " + dayCount(m) * SLOTS.length + " meals picked" + (bad ? ' · <span style="color:var(--bad)">⚠ ' + bad + " need a swap</span>" : "") + "</p>" +
+      '<p class="small muted" style="margin:0">' + mainCount(m) + " of " + dayCount(m) * MAINS.length + " meals picked" + (sideCount(m) ? " · " + sideCount(m) + " sides" : "") + (bad ? ' · <span style="color:var(--bad)">⚠ ' + bad + " need a swap</span>" : "") + "</p>" +
       (first ? '<p class="small" style="margin:4px 0 0">' + first + (ids.length > 3 ? " …" : "") + "</p>" : "") + (m.notes ? '<p class="help" style="margin:4px 0 0">📝 ' + esc(m.notes.length > 120 ? m.notes.slice(0, 120) + "…" : m.notes) + "</p>" : "") + "</div></div>" +
       '<div class="row mt no-print"><a class="btn small primary" href="#/saved/' + m.id + '">Open / edit</a><button class="btn small gold" data-act="useMenu" data-id="' + m.id + '">✔ Use this menu</button><a class="btn small" href="#/saved/' + m.id + '/shop">🛒 Shopping list</a><a class="btn small" href="#/saved/' + m.id + '/print">🖨 Print</a><button class="btn small" data-act="dupMenu" data-id="' + m.id + '">📑 Duplicate</button><button class="btn small danger" data-act="delMenu" data-id="' + m.id + '">Delete</button></div></div>';
   }
@@ -583,11 +766,18 @@
       (state.savedMenus.length ? "" : '<div class="note">No saved menus yet. Tap <b>+ Save for later</b> on Today or Week, or <b>+ Add a menu</b> to build one for a future date.</div>') +
       sec("📅 Upcoming", g.up, "Nothing planned ahead yet.") + sec("🗂️ No date", g.none, "None.") + sec("🕘 Past", g.past, "None.") + disclaimer();
   }
-  function recipeOptions(k, cur) {
+  function recipeOptions(k, cur, mainId) {
     var list = RECIPES.filter(function (r) { return r.m.indexOf(k) >= 0 && !blockReason(r); });
-    var h = '<option value="">— Pick a recipe —</option>';
+    var h = '<option value="">' + (k === "side" ? "— No side / pick a side —" : "— Pick a recipe —") + "</option>";
     var curR = cur && recipeById(cur);
     if (curR && blockReason(curR)) h += '<option value="' + curR.id + '" selected>⚠ ' + esc(curR.n) + "</option>";
+    if (k === "side" && hasSides(mainId)) {
+      var sug = sideSuggest(mainId).map(function (o) { return recipeById(o.id); }).filter(function (r) { return !blockReason(r); });
+      var sugIds = sug.map(function (r) { return r.id; });
+      h += '<optgroup label="Suggested with ' + esc(recipeById(mainId).n) + '">' + sug.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + (isTraditional(mainId, r.id) ? " (traditional)" : "") + "</option>"; }).join("") + "</optgroup>";
+      list = list.filter(function (r) { return sugIds.indexOf(r.id) < 0; });
+      return h + '<optgroup label="Other sides">' + list.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + "</option>"; }).join("") + "</optgroup>";
+    }
     Object.keys(D.CUISINES).forEach(function (c) {
       var g = list.filter(function (r) { return r.c === c; }); if (!g.length) return;
       h += '<optgroup label="' + esc(D.CUISINES[c]) + '">' + g.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + "</option>"; }).join("") + "</optgroup>";
@@ -610,8 +800,12 @@
         var sab = date && date.getDay() === 6;
         return '<div class="day' + (sab ? " sabbath" : "") + '"><div class="dh"><b>' + esc(label) + (sab ? " · Sabbath" : "") + "</b></div>" + SLOTS.map(function (s) {
           var cur = (m.slots || {})[d + "-" + s.k], r = cur && recipeById(cur), br = r ? blockReason(r) : "";
-          return '<div class="mi" style="flex-wrap:wrap"><span class="e">' + (r ? r.e : s.ico) + '</span><div class="t"><small>' + esc(s.label) + (r && date && S("sabbath") && isSabbathSlot(date, s.k) ? (r.tags.indexOf("prep") >= 0 ? " · cook Friday" : " · not a prep-ahead dish") : "") + '</small><select data-mslot="' + d + "-" + s.k + '" data-id="' + m.id + '" aria-label="' + esc(label + " " + s.label) + '">' + recipeOptions(s.k, cur) + "</select>" +
-            (br ? '<div class="small" style="color:var(--bad)">⚠ ' + esc(br) + "</div>" : "") + (r ? '<a class="small" href="#/recipe/' + r.id + '">See recipe</a>' : "") + "</div></div>";
+          var mainId = s.main ? (m.slots || {})[d + "-" + s.main] : null;
+          if (s.main && !hasSides(mainId) && !r) return "";
+          if (s.main && s.k !== SIDE_OF[s.main][0] && !r && !(m.slots || {})[d + "-" + SIDE_OF[s.main][0]]) return "";
+          var pick = !s.main && SIDE_OF[s.k] && hasSides(cur) ? pickSidesBtn(m.id, d, s.k, cur) : "";
+          return '<div class="mi' + (s.main ? " sidemi" : "") + '" style="flex-wrap:wrap"><span class="e">' + (r ? r.e : s.ico) + '</span><div class="t"><small>' + esc(s.label) + (s.main && r && isTraditional(mainId, r.id) ? " · traditional" : "") + (r && date && S("sabbath") && isSabbathSlot(date, s.k) ? (r.tags.indexOf("prep") >= 0 ? " · cook Friday" : " · not a prep-ahead dish") : "") + '</small><select data-mslot="' + d + "-" + s.k + '" data-id="' + m.id + '" aria-label="' + esc(label + " " + s.label) + '">' + recipeOptions(s.main ? "side" : s.k, cur, mainId) + "</select>" +
+            (br ? '<div class="small" style="color:var(--bad)">⚠ ' + esc(br) + "</div>" : "") + (r ? '<a class="small" href="#/recipe/' + r.id + '">See recipe</a>' : "") + pick + "</div></div>";
         }).join("") + "</div>";
       }).join("") + "</div>" + disclaimer();
   }
@@ -620,8 +814,8 @@
     for (var d = 0; d < dayCount(m); d++) rows.push(d);
     return '<div class="row between no-print" style="margin-bottom:12px"><a class="btn" href="#/saved/' + m.id + '">← Back</a><button class="btn primary" data-act="doPrint">🖨 Print this page</button></div>' +
       "<h1>" + esc(m.name) + '</h1><p class="muted">' + esc(menuDateLabel(m)) + " · " + S("servings") + " servings per meal · No pork, tripe or cow foot" + (S("clean") ? " · Biblically clean" : "") + "</p>" + (m.notes ? "<p>📝 " + esc(m.notes) + "</p>" : "") +
-      '<table class="printweek"><thead><tr><th>Day</th>' + SLOTS.map(function (s) { return "<th>" + esc(s.label) + "</th>"; }).join("") + "</tr></thead><tbody>" +
-      rows.map(function (d) { var date = menuDayDate(m, d); return "<tr><th>" + (date ? esc(dayName(date)) + "<br><small>" + esc(dateLabel(date)) + "</small>" : (m.kind === "week" ? "Day " + (d + 1) : "Menu")) + "</th>" + SLOTS.map(function (s) { var r = recipeById((m.slots || {})[d + "-" + s.k]); return "<td>" + (r ? r.e + " " + esc(r.n) + (date && S("sabbath") && isSabbathSlot(date, s.k) && r.tags.indexOf("prep") >= 0 ? "<br><small>cook Friday</small>" : "") : "—") + "</td>"; }).join("") + "</tr>"; }).join("") +
+      '<table class="printweek"><thead><tr><th>Day</th>' + MAINS.map(function (s) { return "<th>" + esc(s.label) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      rows.map(function (d) { var date = menuDayDate(m, d); return "<tr><th>" + (date ? esc(dayName(date)) + "<br><small>" + esc(dateLabel(date)) + "</small>" : (m.kind === "week" ? "Day " + (d + 1) : "Menu")) + "</th>" + MAINS.map(function (s) { return printCell(function (k) { return (m.slots || {})[d + "-" + k]; }, s, date); }).join("") + "</tr>"; }).join("") +
       "</tbody></table><p class=\"small muted mt\">Daily sodium: AHA recommends no more than 2,300 mg a day, ideally no more than 1,500 mg for most adults. Desalt saltfish well before cooking.</p>";
   }
   function comingUpCard() {
@@ -677,7 +871,7 @@
   function disclaimer() { return '<p class="disclaimer">For information and meal ideas only, not medical advice. Ask your doctor or a dietitian about the right sodium goal for you, especially if you take blood pressure medicine. Facts are linked to their sources (AHA, FDA, USDA).</p>'; }
 
   /* ---------- render ---------- */
-  var VIEWS = { all: viewAll, saved: viewSaved, menu: viewMenu, week: viewWeek, print: viewPrint, recipes: viewRecipes, recipe: null, shopping: viewShopping, foods: viewFoods, health: viewHealth, about: viewAbout, sync: viewSync };
+  var VIEWS = { sides: viewSides, all: viewAll, saved: viewSaved, menu: viewMenu, week: viewWeek, print: viewPrint, recipes: viewRecipes, recipe: null, shopping: viewShopping, foods: viewFoods, health: viewHealth, about: viewAbout, sync: viewSync };
   var lastRoute = "";
   function routeParts() { return (location.hash || "").replace(/^#\/?/, "").split("/"); }
   function route() { var r = routeParts()[0]; return VIEWS.hasOwnProperty(r) ? r : "menu"; }
@@ -717,6 +911,8 @@
     var a = b.dataset.act, d = b.dataset.d != null ? +b.dataset.d : null, k = b.dataset.k;
     if (a === "lock") { toggleLock(d, k); rerender(); }
     else if (a === "swap") { swapSlot(d, k); rerender(); }
+    else if (a === "pickSides") { pickSidesDialog(b.dataset.ctx, d, k); }
+    else if (a === "autoSides") { autoSides(b.dataset.ctx, d, k); closeModal(); toast("Sides picked for you"); rerender(); }
     else if (a === "shuffleDay") { fillDays([d]); toast("Shuffled " + dayName(weekDays()[d])); rerender(); }
     else if (a === "shuffleWeek") { fillDays([0, 1, 2, 3, 4, 5, 6]); toast("Shuffled the week"); rerender(); }
     else if (a === "newWeek") { if (confirm("Make a brand-new menu for this week? Locked meals will be replaced too.")) { startNewWeek(); rerender(); } }
@@ -761,7 +957,9 @@
     if (t.dataset.ui) { ui[t.dataset.ui] = t.value; rerender(); return; }
     if (t.dataset.cook) { setFlag("cookChecks", t.dataset.cook, t.dataset.i, t.checked); save(); var sp = t.parentNode.querySelector("span:last-child"); if (sp) sp.className = t.checked ? "done" : ""; return; }
     if (t.dataset.shop) { var sk = shopSource().key; setFlag("shopChecks", sk, t.dataset.shop, t.checked); save(); if (ui.hideChecked && t.checked) rerender(); else { var s2 = t.parentNode.querySelector("span span"); if (s2) s2.className = t.checked ? "done" : ""; var hd = document.getElementById("shopCount"); if (hd) { var items = shoppingItems(); hd.textContent = items.filter(function (x) { return getFlag("shopChecks", sk, x.key); }).length + " of " + items.length + " items checked"; } } return; }
-    if (t.dataset.mslot) { var mm = find("savedMenus", t.dataset.id); if (!mm) return; mm.slots = mm.slots || {}; if (t.value) mm.slots[t.dataset.mslot] = t.value; else delete mm.slots[t.dataset.mslot]; upsert("savedMenus", mm); save(); rerender(); return; }
+    if (t.dataset.mslot) { var mm = find("savedMenus", t.dataset.id); if (!mm) return; mm.slots = mm.slots || {}; if (t.value) mm.slots[t.dataset.mslot] = t.value; else delete mm.slots[t.dataset.mslot];
+      var ms = t.dataset.mslot.split("-"), md = +ms[0], mk = ms[1];
+      if (SIDE_OF[mk]) { var mu = {}; Object.keys(mm.slots).forEach(function (x) { mu[mm.slots[x]] = (mu[mm.slots[x]] || 0) + 1; }); fillSides(menuAcc(mm.slots, md), mk, menuDayDate(mm, md), mu, [mm.slots[md + "-" + mk]].filter(Boolean)); } upsert("savedMenus", mm); save(); rerender(); return; }
     if (t.dataset.mf) { var me = find("savedMenus", t.dataset.id); if (!me) return; var v2 = String(t.value || "").slice(0, t.dataset.mf === "notes" ? 1000 : 80); if (t.dataset.mf === "name" && !v2.trim()) { toast("A menu needs a name"); t.value = me.name; return; } me[t.dataset.mf] = t.dataset.mf === "name" ? v2.trim() : v2; upsert("savedMenus", me); save(); toast(t.dataset.mf === "date" ? "Rescheduled" : "Saved"); if (t.dataset.mf !== "notes") rerender(); return; }
     if (t.dataset.act2 === "allShowHidden") { ui.allShowHidden = t.checked; rerender(); return; }
     if (t.dataset.act2 === "hideChecked") { ui.hideChecked = t.checked; rerender(); return; }
@@ -779,6 +977,13 @@
   }
   function onModalSubmit(e) {
     var f = e.target.closest("[data-modal]"); if (!f) return; e.preventDefault();
+    if (f.dataset.modal === "sides") {
+      var ids = Array.prototype.slice.call(f.querySelectorAll('input[name="side"]:checked')).map(function (x) { return x.value; });
+      var mx = +f.dataset.max;
+      if (ids.length > mx) { toast("Pick up to " + mx + (mx > 1 ? " sides" : " side")); return; }
+      saveSides(f.dataset.ctx, +f.dataset.d, f.dataset.k, ids); closeModal();
+      toast(ids.length ? "Sides saved" + (f.dataset.ctx === "plan" ? " and locked" : "") : "Sides removed"); rerender(); return;
+    }
     var name = f.name.value.trim().slice(0, 80); if (!name) return;
     var date = f.date.value || "", notes = (f.notes.value || "").slice(0, 1000), m;
     if (f.dataset.modal === "saveLater") {

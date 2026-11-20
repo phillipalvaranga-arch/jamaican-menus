@@ -123,6 +123,28 @@ input[type=checkbox]{width:22px;height:22px;min-height:0;accent-color:var(--acce
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:.88rem;font-weight:600;cursor:pointer}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* sides */
+.pill.trad{background:#fff3c4;color:#7a5a00;border:1px solid #f0d36b} [data-theme="dark"] .pill.trad{background:#3a3000;color:#ffd75e;border-color:#6b5a10}
+.slot.sideslot{margin-left:28px;padding:8px 12px;border-left:4px solid var(--gold,#fed100);box-shadow:none}
+.slot.sideslot .emo{font-size:1.4rem;width:40px;height:40px;flex:0 0 40px}
+.slot.sideslot .name{font-weight:650;font-size:.95rem}
+.btn.side-pick{margin-top:8px;border-color:var(--green,#009b3a);color:var(--green2);background:transparent}
+[data-theme="dark"] .btn.side-pick{color:#6fdc95;border-color:#2f8a52}
+.day .mi.sidemi{padding-left:18px;font-size:.92rem}
+.day .mi.sidemi .e{font-size:1.05rem}
+.chip.side-chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;padding:8px 12px}
+.chip.side-chip:hover{border-color:var(--green,#009b3a)}
+.chip.side-chip .pill{margin:0;font-size:.68rem;padding:1px 6px}
+.sides-card h2{margin-bottom:4px}
+.sidelist{display:grid;gap:6px;margin:8px 0}
+.sidebox{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;cursor:pointer;background:var(--panel)}
+.sidebox:has(input:checked){border-color:var(--green,#009b3a);background:var(--panel2)}
+.sidebox input{width:20px;height:20px;flex:0 0 20px}
+.sidebox .e{font-size:1.3rem}
+.sidebox .n{flex:1;font-weight:600}
+.printweek .pside{color:#555}
+.modal-box{max-height:88vh;overflow:auto}
+@media (max-width:640px){.slot.sideslot{margin-left:14px}}
 .rhead{display:flex;gap:16px;align-items:center}
 .rhead .big{font-size:3.2rem;width:84px;height:84px;display:grid;place-items:center;background:var(--panel2);border-radius:20px;flex:0 0 84px}
 .facts{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:.92rem;margin:6px 0}
