@@ -1,7 +1,7 @@
 /* Jamaican Menus — recipe library.
    Ingredient format: "amount|unit|item|section". Sections: pro produce, sea seafood, mea meat & poultry,
    dai dairy & eggs, gra grains & starches, can canned & dry goods, spi spices & seasonings, oth other.
-   No recipe contains pork, pork products, tripe or cow foot. Shellfish recipes carry the "shell" tag. */
+   Jamaican dishes only (plus Jamaican-Chinese style and one requested dish, labeled). No recipe contains pork, pork products, tripe or cow foot. Shellfish recipes carry the "shell" tag. */
 (function (root) {
   "use strict";
   var DESALT = "Desalt the saltfish first: cover it with cold water and soak overnight in the fridge, changing the water 2–3 times. Short on time? Boil it 15–20 minutes, pour off the water, and repeat 2–3 times with fresh water. Taste a flake — it should be only mildly salty.";
@@ -259,94 +259,27 @@
     ing:["1|lb|shell-on shrimp|sea","2||Scotch bonnet peppers, sliced|pro","3||garlic cloves|pro","1|tsp|paprika|spi","1/2|tsp|black pepper|spi","1|tbsp|vinegar|can","1|tsp|olive oil|can"],
     st:["Warm the oil with the garlic and peppers for 1 minute.","Add the shrimp, paprika, black pepper and vinegar.","Cook 4–5 minutes, tossing, until pink. Serve warm or chilled."] },
 
-  /* ---------------- OTHER CARIBBEAN ---------------- */
-  { id:"trini-callaloo", n:"Trinidad-Style Callaloo (No Crab)", c:"car", m:["l","d","side"], e:"🥣", t:40, sv:6, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Traditional Trini callaloo uses crab and salted meat; this version uses neither.",
-    ing:["1|bunch|dasheen bush or callaloo or spinach|pro","10||okra pods|pro","1|cup|pumpkin (calabaza), cubed|pro","1||onion|pro","4||garlic cloves|pro","1|cup|light coconut milk|can","2|sprigs|fresh thyme|pro","1||Scotch bonnet pepper, whole|pro"],
-    st:["Wash and chop the greens, okra, pumpkin, onion and garlic.","Put everything in a pot with the coconut milk, 1 cup water, thyme and whole pepper.","Simmer 30 minutes until very soft.","Remove the pepper and blend or swizzle until smooth."] },
-  { id:"bajan-flying-fish", n:"Barbados-Style Baked Flying Fish", c:"car", m:["l","d"], e:"🐟", t:30, sv:4, tags:["bp","fish"], na:"low",
-    tip:"Make the Bajan green seasoning without salt.",
-    ing:["1|lb|flying fish fillets (or tilapia)|sea","1||lime|pro","4||scallion stalks|pro","1|bunch|fresh parsley|pro","4||garlic cloves|pro","1|sprig|fresh thyme|pro","1/4||Scotch bonnet pepper|pro","1/4|cup|whole-wheat breadcrumbs|gra","1|tbsp|olive oil|can"],
-    st:["Blend scallion, parsley, garlic, thyme, pepper and lime juice into a green seasoning.","Rub it over the fish and rest 15 minutes.","Press breadcrumbs lightly on top, drizzle with oil, and bake at 425°F for 12–15 minutes."] },
-  { id:"cuban-black-beans", n:"Cuban Black Beans with Brown Rice", c:"car", m:["l","d"], e:"🫘", t:40, sv:4, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Use no-salt-added beans and season with cumin, oregano and vinegar.",
-    ing:["2|cans (15 oz)|no-salt-added black beans|can","1||onion, chopped|pro","1||green pepper, chopped|pro","4||garlic cloves|pro","1|tsp|ground cumin|spi","1|tsp|dried oregano|spi","1||bay leaf|spi","1|tbsp|red wine vinegar|can","1|tbsp|olive oil|can","1|cup|brown rice|gra"],
-    st:["Cook the brown rice in unsalted water.","Sauté onion, pepper and garlic in the oil 5 minutes.","Add the beans with their liquid, cumin, oregano and bay leaf. Simmer 15 minutes.","Stir in the vinegar and serve over the rice."] },
-
-  /* ---------------- MEDITERRANEAN ---------------- */
-  { id:"med-baked-cod", n:"Mediterranean Baked Cod with Tomatoes", c:"med", m:["l","d"], e:"🍅", t:30, sv:4, tags:["bp","fish"], na:"low",
-    tip:"Uses fresh cod, not salted. Olives are salty, so they are optional and few.",
-    ing:["1 1/2|lb|fresh cod fillets|sea","1|pint|cherry tomatoes, halved|pro","1||onion, sliced|pro","3||garlic cloves|pro","1|tsp|dried oregano|spi","1||lemon|pro","2|tbsp|olive oil|can","1/4|cup|fresh parsley|pro","8||Kalamata olives, sliced (optional)|can"],
-    st:["Heat the oven to 400°F.","Toss the tomatoes, onion and garlic with half the oil and oregano in a baking dish. Roast 10 minutes.","Nestle the cod in, drizzle with the rest of the oil and lemon juice.","Bake 12–15 minutes until the fish flakes. Top with parsley (and a few olives if you like)."] },
-  { id:"greek-chickpea-salad", n:"Greek Chickpea Salad", c:"med", m:["l","s"], e:"🥗", t:15, sv:4, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Skip or go light on feta and olives, the salty parts; lemon and herbs carry it.",
-    ing:["1|can (15 oz)|no-salt-added chickpeas, rinsed|can","2||cucumbers, chopped|pro","1|pint|cherry tomatoes|pro","1/2||red onion|pro","1||sweet pepper|pro","1||lemon|pro","2|tbsp|olive oil|can","1|tsp|dried oregano|spi","1/4|cup|feta (optional)|dai"],
-    st:["Chop the vegetables.","Whisk lemon juice, oil and oregano.","Toss everything together. Keeps 2 days in the fridge — good for Sabbath lunch."] },
-  { id:"lentil-soup", n:"Mediterranean Lentil Soup", c:"med", m:["l","d"], e:"🍲", t:45, sv:6, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Use low-sodium or homemade vegetable broth, or just water and more herbs.",
-    ing:["1 1/2|cups|brown or green lentils, rinsed|can","1||onion|pro","2||carrots|pro","2||celery stalks|pro","3||garlic cloves|pro","1|can (14.5 oz)|no-salt-added diced tomatoes|can","1|tsp|ground cumin|spi","1|tsp|smoked paprika|spi","6|cups|low-sodium vegetable broth or water|can","2|cups|spinach|pro","1||lemon|pro","1|tbsp|olive oil|can"],
-    st:["Sauté the onion, carrot, celery and garlic in the oil 5 minutes.","Add the spices, lentils, tomatoes and broth. Simmer 30 minutes.","Stir in the spinach and lemon juice. Freezes well."] },
-  { id:"shakshuka", n:"Shakshuka with Spinach", c:"med", m:["b","l"], e:"🍳", t:30, sv:3, tags:["bp","fiber"], na:"low",
-    tip:"Use no-salt-added tomatoes; cumin and paprika give big flavor.",
-    ing:["1|can (28 oz)|no-salt-added crushed tomatoes|can","6||eggs|dai","1||onion|pro","1||sweet pepper|pro","3||garlic cloves|pro","2|cups|spinach|pro","1|tsp|ground cumin|spi","1|tsp|paprika|spi","1|tbsp|olive oil|can"],
-    st:["Sauté onion, pepper and garlic in the oil 5 minutes.","Add spices and tomatoes and simmer 10 minutes. Stir in the spinach.","Make 6 wells and crack in the eggs. Cover and cook 6–8 minutes until the whites set."] },
-  { id:"grilled-salmon-quinoa", n:"Lemon-Herb Salmon with Quinoa", c:"med", m:["l","d"], e:"🍣", t:30, sv:4, tags:["bp","fish","fiber"], na:"low",
-    tip:"Salmon, lemon and dill need no added salt.",
-    ing:["1 1/2|lb|salmon fillets|sea","1|cup|quinoa|gra","1||lemon|pro","2||garlic cloves|pro","1|tbsp|fresh dill or 1 tsp dried|pro","1||cucumber|pro","1|tbsp|olive oil|can","1/2|tsp|black pepper|spi"],
-    st:["Cook the quinoa in 2 cups unsalted water, 15 minutes.","Rub the salmon with garlic, lemon zest, dill, pepper and oil.","Bake at 400°F for 12–15 minutes or grill.","Serve over quinoa with sliced cucumber and lemon."] },
-
-  /* ---------------- AFRICAN ---------------- */
-  { id:"west-african-peanut-stew", n:"West African Peanut Stew", c:"afr", m:["l","d"], e:"🥘", t:45, sv:6, tags:["bp","fiber","prep"], na:"low",
-    tip:"Use natural unsalted peanut butter and no-salt-added tomatoes.",
-    ing:["1|lb|skinless chicken breast, cubed (or chickpeas for plant-based)|mea","1/2|cup|natural unsalted peanut butter|can","1||sweet potato, cubed|pro","1||onion|pro","3||garlic cloves|pro","1|inch|fresh ginger|pro","1|can (14.5 oz)|no-salt-added diced tomatoes|can","3|cups|collard greens or spinach, chopped|pro","1/4||Scotch bonnet pepper|pro","1|tsp|ground cumin|spi","4|cups|water|oth","1|tbsp|canola oil|can"],
-    st:["Sauté onion, garlic and ginger in the oil 4 minutes. Add the chicken and brown.","Add tomatoes, sweet potato, cumin, pepper and water. Simmer 20 minutes.","Whisk in the peanut butter and add the greens. Simmer 10 minutes until thick."] },
-  { id:"misir-wot", n:"Ethiopian Red Lentil Stew (Misir Wot)", c:"afr", m:["l","d"], e:"🍲", t:40, sv:4, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Make sure your berbere blend is salt-free, or use paprika, cayenne and spices.",
-    ing:["1 1/2|cups|red lentils|can","1||onion, finely chopped|pro","3||garlic cloves|pro","1|inch|fresh ginger|pro","2|tbsp|berbere spice (salt-free)|spi","2|tbsp|no-salt-added tomato paste|can","1|tbsp|olive oil|can","4|cups|water|oth"],
-    st:["Cook the onion slowly in the oil 8–10 minutes.","Add garlic, ginger, berbere and tomato paste and stir 2 minutes.","Add lentils and water and simmer 20–25 minutes until thick and soft."] },
-  { id:"ghana-fish-stew", n:"Ghana-Style Tomato Fish Stew", c:"afr", m:["l","d"], e:"🐟", t:40, sv:4, tags:["bp","fish"], na:"low",
-    tip:"Skip bouillon cubes; ginger and garlic make it rich.",
-    ing:["1 1/2|lb|tilapia or snapper fillets|sea","1|can (14.5 oz)|no-salt-added diced tomatoes|can","1||onion|pro","3||garlic cloves|pro","1|inch|fresh ginger|pro","1/4||Scotch bonnet pepper|pro","1|tsp|curry powder (salt-free)|spi","1|tbsp|canola oil|can"],
-    st:["Blend the tomatoes, half the onion, garlic, ginger and pepper.","Sauté the remaining onion in the oil, add the blend and curry, and simmer 15 minutes.","Add the fish, cover, and simmer 8–10 minutes. Serve with boiled yam or brown rice."] },
-
-  /* ---------------- ASIAN ---------------- */
-  { id:"ginger-steamed-fish", n:"Ginger-Scallion Steamed Fish", c:"asi", m:["l","d"], e:"🐟", t:25, sv:2, tags:["bp","fish"], na:"low",
-    tip:"Regular soy sauce is very salty; use a teaspoon of low-sodium soy, or skip it and use lime.",
-    ing:["1|lb|snapper or tilapia fillets|sea","2|inch|fresh ginger, in matchsticks|pro","4||scallion stalks, in strips|pro","1|tsp|low-sodium soy sauce (optional)|can","1|tsp|sesame oil|can","1||lime|pro"],
-    st:["Lay the fish on a plate with half the ginger and scallion.","Steam over boiling water 8–10 minutes until it flakes.","Top with the rest of the ginger and scallion, drizzle with sesame oil, soy (if using) and lime."] },
-  { id:"bok-choy-cabbage", n:"Garlic Bok Choy and Cabbage Stir-Fry", c:"asi", m:["side","l"], e:"🥬", t:15, sv:4, tags:["bp","plant","fiber"], na:"low",
-    tip:"Garlic and ginger do the work; a splash of rice vinegar replaces soy sauce.",
-    ing:["1|lb|bok choy|pro","2|cups|cabbage, shredded|pro","3||garlic cloves|pro","1|inch|fresh ginger|pro","1|tbsp|rice vinegar|can","1|tbsp|canola oil|can"],
-    st:["Heat the oil until hot. Add garlic and ginger for 30 seconds.","Add the cabbage, stir-fry 2 minutes, then add the bok choy.","Cook 3 minutes until crisp-tender and finish with the vinegar."] },
-  { id:"chicken-veg-stirfry", n:"Stir-Fried Chicken with Vegetables", c:"asi", m:["l","d"], e:"🥢", t:30, sv:4, tags:["bp","fiber"], na:"mod",
+  /* ---------------- JAMAICAN-CHINESE STYLE & REQUESTED ---------------- */
+  { id:"chicken-veg-stirfry", n:"Stir-Fried Chicken with Vegetables (Jamaican-Chinese Style)", c:"jm", lab:"Jamaican-Chinese style", m:["l","d"], e:"🥢", t:30, sv:4, tags:["bp","fiber"], na:"mod",
     tip:"Use 1 tablespoon of low-sodium soy sauce for the whole pan, and let ginger, garlic, lime and a little sesame oil do the rest. No added salt.",
     ing:["1|lb|skinless chicken breast, thinly sliced|mea","2|cups|broccoli florets|pro","1||sweet pepper, sliced|pro","1||carrot, thinly sliced|pro","1|cup|snow peas|pro","2|cups|cabbage or bok choy, sliced|pro","1||onion, sliced|pro","3||garlic cloves, minced|pro","1|inch|fresh ginger, grated|pro","1|tbsp|low-sodium soy sauce|can","1|tbsp|rice vinegar|can","1|tsp|cornstarch|can","1|tsp|sesame oil|can","1|tbsp|canola oil|can","1||lime|pro","1|cup|brown rice|gra"],
     st:["Cook the brown rice in unsalted water.","Toss the chicken with the cornstarch. Mix the soy sauce, rice vinegar, sesame oil, lime juice and 3 tablespoons of water for the sauce.","Heat half the canola oil in a wok or large skillet on high. Stir-fry the chicken 4–5 minutes until cooked through; set aside.","Add the rest of the oil, then the garlic and ginger for 30 seconds. Add the onion, carrot and broccoli and stir-fry 3 minutes, then the pepper, snow peas and cabbage for 2 minutes.","Return the chicken, pour in the sauce and toss 1 minute until glossy. Serve over the rice."] },
-  { id:"sweet-sour-chicken", n:"Healthier Sweet and Sour Chicken", c:"asi", m:["l","d"], e:"🍍", t:35, sv:4, tags:["bp","fiber"], na:"mod",
+  { id:"sweet-sour-chicken", n:"Healthier Sweet and Sour Chicken (Jamaican-Chinese Style)", c:"jm", lab:"Jamaican-Chinese style", m:["l","d"], e:"🍍", t:35, sv:4, tags:["bp","fiber"], na:"mod",
     tip:"Pan-seared instead of battered and deep-fried. The sauce uses no-salt-added ketchup, a little low-sodium soy sauce and pineapple juice for sweetness, with less sugar.",
     ing:["1 1/2|lb|skinless chicken breast, cut in 1-inch pieces|mea","1|tbsp|cornstarch (for chicken)|can","1|can (20 oz)|pineapple chunks in juice (not syrup)|can","1||red sweet pepper, in chunks|pro","1||green sweet pepper, in chunks|pro","1||onion, in chunks|pro","2||garlic cloves, minced|pro","1|inch|fresh ginger, grated|pro","3|tbsp|no-salt-added ketchup|can","3|tbsp|rice vinegar|can","1|tbsp|low-sodium soy sauce|can","1|tbsp|honey|can","2|tsp|cornstarch (for sauce)|can","1|tbsp|canola oil|can","1|cup|brown rice|gra"],
     st:["Cook the brown rice in unsalted water.","Drain the pineapple, saving 1/2 cup of the juice. Whisk that juice with the ketchup, vinegar, soy sauce, honey and 2 teaspoons cornstarch.","Toss the chicken with 1 tablespoon cornstarch. Sear in half the oil in a large skillet over medium-high heat, 5–6 minutes, until golden and cooked through. Set aside.","Add the rest of the oil and stir-fry the onion, peppers, garlic and ginger 3 minutes until crisp-tender.","Add the pineapple and sauce and stir until it thickens, about 1 minute. Return the chicken, toss to coat, and serve over the rice."] },
 
-  /* ---------------- LATIN / OTHER ---------------- */
-  { id:"black-bean-sweet-potato-bowl", n:"Black Bean and Sweet Potato Bowl", c:"lat", m:["l","d"], e:"🥑", t:35, sv:4, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Use no-salt-added beans and fresh salsa instead of jarred.",
-    ing:["2||sweet potatoes, cubed|pro","1|can (15 oz)|no-salt-added black beans|can","1||avocado|pro","1|cup|cherry tomatoes|pro","1/4||red onion|pro","1||lime|pro","1|tsp|ground cumin|spi","1|tsp|smoked paprika|spi","1|tbsp|olive oil|can","1|cup|brown rice|gra"],
-    st:["Roast the sweet potato with oil, cumin and paprika at 425°F for 25 minutes.","Cook the rice in unsalted water and warm the beans.","Make a quick salsa with tomato, onion and lime.","Build bowls with rice, beans, sweet potato, salsa and sliced avocado."] },
-  { id:"overnight-oats", n:"Overnight Oats with Mango", c:"lat", m:["b"], e:"🥭", t:5, sv:1, tags:["bp","plant","fiber","prep"], na:"low",
-    tip:"Make Friday afternoon for an easy Sabbath breakfast.",
-    ing:["1/2|cup|rolled oats|gra","1/2|cup|unsweetened almond or low-fat milk|dai","1/4|cup|plain low-fat yogurt|dai","1|tbsp|chia seeds|can","1/2||mango, chopped|pro","1/4|tsp|cinnamon|spi"],
-    st:["Stir the oats, milk, yogurt, chia and cinnamon in a jar.","Top with mango, cover, and refrigerate overnight. Eat cold."] },
-  { id:"cherry-chicken", n:"Tart Cherry Glazed Chicken", c:"oth", m:["l","d"], e:"🍒", t:45, sv:4, tags:["bp","prep"], na:"low",
+  { id:"cherry-chicken", n:"Tart Cherry Glazed Chicken", c:"jm", lab:"Your request · not traditional Jamaican", note:"Kept because you asked for Cherry Chicken. It is a modern dish seasoned with Jamaican pimento and thyme, not a traditional Jamaican recipe.", m:["l","d"], e:"🍒", t:45, sv:4, tags:["bp","prep"], na:"low",
     tip:"No salt or soy sauce in the glaze — the tart cherries, balsamic vinegar, garlic and thyme carry the flavor. Unsweetened tart cherries keep the sugar low; only a tablespoon of honey is added.",
     ing:["1 1/2|lb|skinless chicken breasts or thighs|mea","2|cups|frozen unsweetened tart (sour) cherries, or 1 can tart cherries in water, drained|pro","1/2|cup|100% tart cherry juice, unsweetened (or water)|can","2|tbsp|balsamic vinegar|can","1|tbsp|honey|can","3||garlic cloves, minced|pro","1||small onion or shallot, finely chopped|pro","2|sprigs|fresh thyme|pro","1/2|tsp|ground pimento (allspice)|spi","1/2|tsp|black pepper|spi","1/2|tsp|smoked paprika|spi","1|tsp|cornstarch|can","1|tbsp|olive oil|can"],
     st:["Pat the chicken dry and season with black pepper, smoked paprika and half the pimento.","Heat the oil in an oven-safe skillet over medium-high heat and sear the chicken 4–5 minutes per side until browned. Set it aside.","Lower the heat. Add the onion and garlic and cook 2 minutes, then add the cherries, cherry juice, balsamic vinegar, honey, thyme and the rest of the pimento. Simmer 6–8 minutes, mashing some cherries, until slightly thick.","Stir the cornstarch into 1 tablespoon of cold water, add it to the pan and stir until glossy, about 1 minute.","Return the chicken and spoon the glaze over it. Simmer covered 8–10 minutes (or bake at 400°F for 12–15 minutes) until it reaches 165°F inside.","Serve with brown rice, roasted sweet potato or steamed callaloo. Keeps well for Sabbath."] },
 
-  /* ---------------- SIDES (added with the Sides feature) ---------------- */
-  { id:"jm-coleslaw", n:"Jamaican Coleslaw (Lighter)", c:"jm", m:["side"], e:"🥗", t:15, sv:6, tags:["bp","prep"], na:"mod",
+  /* ---------------- MORE JAMAICAN SIDES ---------------- */
+  { id:"jm-coleslaw", n:"Jamaican Coleslaw (Lighter)", c:"jm", lab:"Jamaican-style", m:["side"], e:"🥗", t:15, sv:6, tags:["bp","prep"], na:"mod",
     tip:"Half light mayonnaise and half plain yogurt keeps it creamy with less fat and sodium. No added salt — lime, vinegar and black pepper bring the flavor.",
     ing:["1/2||medium green cabbage, finely shredded|pro","2||carrots, grated|pro","1/4||small onion, grated (optional)|pro","3|tbsp|light mayonnaise|can","3|tbsp|plain low-fat yogurt|dai","1|tbsp|white vinegar|can","1||lime|pro","1|tsp|sugar (optional)|can","1/4|tsp|black pepper|spi"],
     st:["Put the cabbage, carrot and onion in a large bowl.","Whisk the mayonnaise, yogurt, vinegar, lime juice, sugar (if using) and black pepper.","Pour over the vegetables and toss well.","Chill at least 20 minutes so the flavors mix. Keeps 2 days in the fridge."] },
-  { id:"potato-salad", n:"Jamaican Potato Salad (Plain or Pink Beet)", c:"jm", m:["side"], e:"🥔", t:40, sv:6, tags:["bp","prep"], na:"mod",
+  { id:"potato-salad", n:"Jamaican Potato Salad (Plain or Pink Beet)", c:"jm", lab:"Jamaican-style", m:["side"], e:"🥔", t:40, sv:6, tags:["bp","prep"], na:"mod",
     tip:"No bacon and no added salt. Boil the potatoes in unsalted water and use light mayonnaise mixed with yogurt. The beet (\"pink\") version adds color and flavor without salt.",
     ing:["2|lb|potatoes, peeled and cubed|pro","2||carrots, diced|pro","1/2|cup|frozen green peas|pro","3||eggs|dai","1/4||small onion, finely chopped|pro","2||scallion stalks, chopped|pro","1/4|cup|light mayonnaise|can","2|tbsp|plain low-fat yogurt|dai","1|tsp|mustard|can","1/4|tsp|black pepper|spi","1||small cooked beet, diced (for the pink version, optional)|pro"],
     st:["Boil the potatoes and carrots in unsalted water 10–12 minutes until just tender. Add the peas for the last 2 minutes. Drain and cool.","Hard-boil the eggs 10 minutes, cool in cold water, peel and chop.","Mix the mayonnaise, yogurt, mustard and black pepper.","Fold the potatoes, carrots, peas, eggs, onion and scallion into the dressing.","PINK VERSION: gently fold in the diced cooked beet — it turns the salad pink.","Chill at least 30 minutes before serving. Keeps 2 days in the fridge."] },
@@ -362,7 +295,7 @@
     tip:"Okra, tomato, onion and thyme need no salt. Cook it quickly to keep it less slimy.",
     ing:["1|lb|fresh okra, trimmed and sliced|pro","1||tomato, chopped|pro","1||onion, sliced|pro","2||garlic cloves, minced|pro","1|sprig|fresh thyme|pro","1/4||Scotch bonnet pepper, minced (optional)|pro","1|tsp|olive oil|can","1/4|tsp|black pepper|spi"],
     st:["Warm the oil and soften the onion, garlic and Scotch bonnet 2 minutes.","Add the okra, tomato, thyme and 3 tablespoons of water.","Cover and steam 6–8 minutes until the okra is just tender.","Season with black pepper and serve."] },
-  { id:"garden-salad", n:"Garden Salad with Lime Dressing", c:"oth", m:["side"], e:"🥗", t:10, sv:4, tags:["bp","plant"], na:"low",
+  { id:"garden-salad", n:"Jamaican-Style Garden Salad (Lettuce, Tomato, Cucumber)", c:"jm", lab:"Jamaican-style", m:["side"], e:"🥗", t:10, sv:4, tags:["bp","plant"], na:"low",
     tip:"A simple lime and olive oil dressing has far less sodium than most bottled dressings.",
     ing:["1||head romaine or green leaf lettuce, chopped|pro","2||tomatoes, cut in wedges|pro","1||cucumber, sliced|pro","1||carrot, grated|pro","1/4||red onion, thinly sliced|pro","1||lime|pro","1|tbsp|olive oil|can","1/4|tsp|black pepper|spi"],
     st:["Put the lettuce, tomato, cucumber, carrot and onion in a bowl.","Whisk the lime juice, olive oil and black pepper.","Dress the salad just before serving."] },
@@ -374,11 +307,11 @@
     tip:"Leave out the salt, use part whole-wheat flour, and shallow-fry in a little oil instead of deep-frying. Baking powder does add some sodium, so enjoy 1–2 per meal.",
     ing:["1 1/2|cups|all-purpose flour|gra","1/2|cup|whole-wheat flour|gra","2|tsp|baking powder|can","1|tsp|sugar (optional)|can","1|tbsp|unsalted butter, cold|dai","2/3|cup|cold water|oth","3|tbsp|canola oil, for frying|can"],
     st:["Mix the flours, baking powder and sugar. Rub in the butter with your fingers until it looks like crumbs.","Add the water a little at a time and knead into a soft, smooth dough. Rest 10 minutes.","Divide into 12 balls and flatten each slightly.","Heat the oil in a heavy skillet over medium heat. Fry the dumplings 4–5 minutes per side, turning, until golden and cooked through.","Drain on paper towels. AIR-FRYER OPTION: brush lightly with oil and air-fry at 370°F for 10–12 minutes, turning once."] },
-  { id:"macaroni-pie", n:"Macaroni Pie (Lighter, Baked)", c:"jm", m:["side"], e:"🧀", t:50, sv:8, tags:["prep"], na:"mod",
+  { id:"macaroni-pie", n:"Jamaican-Style Macaroni Pie (Lighter, Baked)", c:"jm", lab:"Jamaican-style", m:["side"], e:"🧀", t:50, sv:8, tags:["prep"], na:"mod",
     tip:"Cheese is the main source of sodium here. Use a reduced-fat sharp cheddar (sharp gives more flavor from less cheese), low-fat evaporated milk, whole-wheat pasta and no added salt.",
     ing:["8|oz|whole-wheat elbow macaroni|gra","1 1/2|cups|reduced-fat sharp cheddar, grated|dai","1|can (12 oz)|low-fat evaporated milk|dai","2||eggs|dai","1||small onion, grated|pro","1/2||sweet pepper, finely diced|pro","1|tsp|mustard|can","1/2|tsp|black pepper|spi","1/2|tsp|paprika|spi"],
     st:["Heat the oven to 350°F and lightly grease an 8x8-inch dish.","Boil the macaroni in unsalted water 2 minutes less than the package says. Drain.","Whisk the evaporated milk, eggs, mustard, black pepper, onion and sweet pepper.","Stir in the macaroni and 1 cup of the cheese. Pour into the dish and top with the rest of the cheese and the paprika.","Bake 30–35 minutes until set and golden. Rest 10 minutes before cutting."] },
-  { id:"macaroni-salad", n:"Macaroni Salad (Lighter)", c:"jm", m:["side"], e:"🥗", t:25, sv:6, tags:["prep"], na:"mod",
+  { id:"macaroni-salad", n:"Jamaican-Style Macaroni Salad (Lighter)", c:"jm", lab:"Jamaican-style", m:["side"], e:"🥗", t:25, sv:6, tags:["prep"], na:"mod",
     tip:"Use whole-wheat pasta cooked in unsalted water, and half light mayonnaise, half yogurt. Lots of vegetables stretch the dressing.",
     ing:["8|oz|whole-wheat elbow macaroni|gra","1||carrot, diced|pro","1/2||sweet pepper, diced|pro","1/2|cup|frozen green peas|pro","2||scallion stalks, chopped|pro","3|tbsp|light mayonnaise|can","3|tbsp|plain low-fat yogurt|dai","1|tsp|mustard|can","1|tbsp|vinegar or lime juice|can","1/4|tsp|black pepper|spi"],
     st:["Boil the macaroni in unsalted water until tender, adding the carrot and peas for the last 3 minutes. Drain and rinse in cold water.","Mix the mayonnaise, yogurt, mustard, vinegar and black pepper.","Toss with the macaroni, vegetables, sweet pepper and scallion.","Chill 30 minutes before serving. Keeps 2 days in the fridge."] },
@@ -417,27 +350,35 @@
     "chicken-patty": ["jm-coleslaw","garden-salad","cucumber-salad"],
     "curry-shrimp": ["*white-rice","steamed-cabbage","garden-salad"],
     "pepper-shrimp": ["cucumber-salad","garden-salad"],
-    "bajan-flying-fish": ["macaroni-pie","cucumber-salad","steamed-veg"],
-    "cuban-black-beans": ["baked-ripe-plantain","garden-salad"],
-    "shakshuka": ["garden-salad","cucumber-salad"],
-    "med-baked-cod": ["white-rice","collard-greens","garden-salad"],
-    "grilled-salmon-quinoa": ["steamed-veg","garden-salad","steamed-callaloo"],
-    "west-african-peanut-stew": ["white-rice","boiled-yam"],
-    "misir-wot": ["white-rice","garden-salad","steamed-cabbage"],
-    "ghana-fish-stew": ["boiled-yam","white-rice","baked-ripe-plantain"],
-    "ginger-steamed-fish": ["white-rice","bok-choy-cabbage","steamed-veg"],
     "chicken-veg-stirfry": ["cucumber-salad","garden-salad"],
-    "sweet-sour-chicken": ["bok-choy-cabbage","cucumber-salad"],
-    "black-bean-sweet-potato-bowl": ["garden-salad","cucumber-salad"],
+    "sweet-sour-chicken": ["cucumber-salad","steamed-cabbage"],
     "cherry-chicken": ["white-rice","roasted-sweet-potato","steamed-callaloo"]
   };
   /* Starchy sides (so a dinner gets one starch and one vegetable when it can). */
   var STARCH = ["rice-and-peas","white-rice","boiled-food","roasted-breadfruit","breadfruit-oven-chips","baked-festival","bammy","fried-dumplings","macaroni-pie","macaroni-salad","potato-salad","roasted-sweet-potato","boiled-yam","baked-ripe-plantain","steamed-pumpkin"];
 
-  var CUISINES = { jm:"Jamaican", car:"Other Caribbean", med:"Mediterranean", afr:"African", asi:"Asian", lat:"Latin American", oth:"Other / modern" };
+  /* Recipes removed when the app became Jamaican-only (Nov 2026): old name and Jamaican replacements, in order of preference. */
+  var REMOVED = {
+    "trini-callaloo": { n: "Trinidad-Style Callaloo (No Crab)", to: ["steamed-callaloo", "ital-stew"] },
+    "bajan-flying-fish": { n: "Barbados-Style Baked Flying Fish", to: ["escovitch-snapper"] },
+    "cuban-black-beans": { n: "Cuban Black Beans with Brown Rice", to: ["stew-peas"] },
+    "med-baked-cod": { n: "Mediterranean Baked Cod with Tomatoes", to: ["steamed-snapper"] },
+    "greek-chickpea-salad": { n: "Greek Chickpea Salad", to: ["curry-chickpea-pumpkin", "fruit-plate"] },
+    "lentil-soup": { n: "Mediterranean Lentil Soup", to: ["red-pea-soup"] },
+    "shakshuka": { n: "Shakshuka with Spinach", to: ["callaloo-omelette", "callaloo-saltfish"] },
+    "grilled-salmon-quinoa": { n: "Lemon-Herb Salmon with Quinoa", to: ["jerk-fish"] },
+    "west-african-peanut-stew": { n: "West African Peanut Stew", to: ["brown-stew-chicken"] },
+    "misir-wot": { n: "Ethiopian Red Lentil Stew (Misir Wot)", to: ["curry-chickpea-pumpkin"] },
+    "ghana-fish-stew": { n: "Ghana-Style Tomato Fish Stew", to: ["brown-stew-parrot"] },
+    "ginger-steamed-fish": { n: "Ginger-Scallion Steamed Fish", to: ["steamed-parrot"] },
+    "bok-choy-cabbage": { n: "Garlic Bok Choy and Cabbage Stir-Fry", to: ["steamed-cabbage"] },
+    "black-bean-sweet-potato-bowl": { n: "Black Bean and Sweet Potato Bowl", to: ["stew-peas"] },
+    "overnight-oats": { n: "Overnight Oats with Mango", to: ["oats-porridge"] }
+  };
+  var CUISINES = { jm:"Jamaican" };
   var SECTIONS = { pro:"Produce", sea:"Seafood", mea:"Meat & poultry", dai:"Dairy, eggs & milk", gra:"Grains, flour & starches", can:"Canned, dry & pantry", spi:"Spices & seasonings", oth:"Other" };
   var TAGS = { bp:"BP-friendly", fiber:"High fiber", fish:"Fish", plant:"Plant-based", prep:"Sabbath prep-ahead", desalt:"Desalt first", ackee:"Ackee", shell:"Shellfish", treat:"Treat / occasional", drink:"Drink" };
 
-  root.JM_DATA = { SIDES: SIDES, STARCH: STARCH, RECIPES: R, CUISINES: CUISINES, SECTIONS: SECTIONS, TAGS: TAGS, DESALT: DESALT };
+  root.JM_DATA = { REMOVED: REMOVED, SIDES: SIDES, STARCH: STARCH, RECIPES: R, CUISINES: CUISINES, SECTIONS: SECTIONS, TAGS: TAGS, DESALT: DESALT };
   if (typeof module !== "undefined" && module.exports) module.exports = root.JM_DATA;
 })(typeof window !== "undefined" ? window : globalThis);

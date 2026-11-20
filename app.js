@@ -101,6 +101,7 @@
   function unitSing(u) { var p = String(u || "").split(" "); if (UNIT_SING[p[0]]) p[0] = UNIT_SING[p[0]]; return p.join(" "); }
   function unitFor(u, q) { var s = unitSing(u), p = s.split(" "); if (q != null && q > 1.01 && UNIT_PLUR[p[0]]) p[0] = UNIT_PLUR[p[0]]; return p.join(" "); }
   function parseIng(s) { var p = s.split("|"); return { q: fracParse(p[0]), raw: p[0], u: p[1], item: p[2], sec: p[3] }; }
+  function cuLabel(r) { return r.lab || "Jamaican"; }
   function recipeById(id) { return RECIPES.filter(function (r) { return r.id === id; })[0] || null; }
 
   /* ---------- state ---------- */
@@ -121,7 +122,7 @@
     return s;
   }
   var state = load();
-  var DEFAULTS = { ratio: 75, cuisines: ["car", "med", "afr", "asi", "lat", "oth"], useLikes: true, clean: true, servings: 2, sabbath: true, exclude: "", theme: "" };
+  var DEFAULTS = { useLikes: true, clean: true, servings: 2, sabbath: true, exclude: "", theme: "" };
   function S(k) { var v = state.settings[k]; return v === undefined ? DEFAULTS[k] : v; }
   function setS(k, v) { state.settings[k] = v; state.settingsTimes[k] = nowISO(); save(); }
   function migrate() {
@@ -129,6 +130,35 @@
     var t = nowISO();
     if (Array.isArray(state.settings.cuisines) && state.settings.cuisines.indexOf("oth") < 0) { state.settings.cuisines = state.settings.cuisines.concat(["oth"]); state.settingsTimes.cuisines = t; }
     state.settings.cuisinesOth = true; state.settingsTimes.cuisinesOth = t; persist();
+  }
+  /* Recipes removed when the app became Jamaican-only: swap them for Jamaican equivalents in the week plan and saved menus. */
+  function replacementFor(id, k, date) {
+    var meal = mainOf(k) || k === "side" ? "side" : k, info = D.REMOVED[id], to = info ? info.to : [];
+    for (var i = 0; i < to.length; i++) { var r = recipeById(to[i]); if (r && r.m.indexOf(meal) >= 0 && !blockReason(r)) return r; }
+    return mainOf(k) || !slotDef(k) ? null : pickRecipe(k, date, {}, null, null);
+  }
+  function removedName(id) { return D.REMOVED[id] ? D.REMOVED[id].n : "A recipe that is no longer in the app"; }
+  function fixRemoved() {
+    var n = 0, days = weekDays();
+    state.plan.slice().forEach(function (p) {
+      if (!p.recipeId || recipeById(p.recipeId)) return;
+      var parts = p.id.split("-"), d = +parts[0], k = parts.slice(1).join("-"), r = replacementFor(p.recipeId, k, days[d]);
+      if (r) { p.recipeId = r.id; upsert("plan", p); } else removeItem("plan", p.id);
+      n++;
+    });
+    state.savedMenus.forEach(function (m) {
+      var ch = false;
+      Object.keys(m.slots || {}).forEach(function (key) {
+        var id = m.slots[key]; if (recipeById(id)) return;
+        var parts = key.split("-"), k = parts.slice(1).join("-"), r = replacementFor(id, k, menuDayDate(m, +parts[0]));
+        m.changes = (m.changes || []).concat([{ from: removedName(id), to: r ? r.n : "", slot: key }]);
+        if (r) m.slots[key] = r.id; else delete m.slots[key];
+        ch = true; n++;
+      });
+      if (ch) upsert("savedMenus", m);
+    });
+    state.favorites.slice().forEach(function (f) { if (!recipeById(f.recipeId)) removeItem("favorites", f.id); });
+    return n;
   }
   function seed() {
     if (state.settings.seeded) return;
@@ -187,9 +217,8 @@
   function planItem(d, k) { return find("plan", slotId(d, k)); }
   function isSabbathSlot(date, k) { var wd = date.getDay(); return wd === 6 || (wd === 5 && (k === "d" || mainOf(k) === "d")); }
   function candidates(k, date, exceptId) {
-    var cu = S("cuisines") || [];
-    var side = !!mainOf(k) || k === "side", mk = side ? "side" : k;
-    var pool = RECIPES.filter(function (r) { return r.m.indexOf(mk) >= 0 && !blockReason(r) && (side || r.c === "jm" || cu.indexOf(r.c) >= 0); });
+    var mk = mainOf(k) || k === "side" ? "side" : k;
+    var pool = RECIPES.filter(function (r) { return r.m.indexOf(mk) >= 0 && !blockReason(r); });
     if (S("sabbath") && date && isSabbathSlot(date, k)) { var pp = pool.filter(function (r) { return r.tags.indexOf("prep") >= 0; }); if (pp.length) pool = pp; }
     if (exceptId && pool.length > 1) pool = pool.filter(function (r) { return r.id !== exceptId; });
     return pool;
@@ -257,8 +286,6 @@
   function pickRecipe(k, date, used, exceptId, dayIds) {
     var pool = candidates(k, date, exceptId); if (!pool.length) return null;
     if (dayIds) { var nd = pool.filter(function (r) { return dayIds.indexOf(r.id) < 0; }); if (nd.length) pool = nd; }
-    var wantJm = Math.random() * 100 < S("ratio");
-    var g = pool.filter(function (r) { return (r.c === "jm") === wantJm; }); if (g.length) pool = g;
     var useLikes = S("useLikes");
     var weights = pool.map(function (r) {
       var w = 1;
@@ -348,7 +375,7 @@
     return '<div class="slot' + (s.main ? " sideslot" : "") + (p.locked ? " locked" : "") + (br ? " bad" : "") + '">' +
       '<div class="emo">' + r.e + '</div><div class="body"><div class="lbl">' + s.ico + " " + esc(s.main ? "Side" : s.label) + (sab ? ' · <span style="color:var(--gold-ink)">Cook Friday before sunset</span>' : "") + '</div>' +
       '<a class="name" href="#/recipe/' + r.id + '">' + esc(r.n) + '</a>' +
-      '<div class="tags">' + (s.main ? sideBadge(mainId, r.id) : '<span class="pill cuisine">' + esc(D.CUISINES[r.c]) + "</span>") + tagPills(r, s.main ? 2 : 3) + (likes.length && !s.main ? '<span class="pill" title="Foods you like">💚 ' + esc(likes.slice(0, 2).join(", ")) + "</span>" : "") + "</div>" +
+      '<div class="tags">' + (s.main ? sideBadge(mainId, r.id) : '<span class="pill cuisine">' + esc(cuLabel(r)) + "</span>") + tagPills(r, s.main ? 2 : 3) + (likes.length && !s.main ? '<span class="pill" title="Foods you like">💚 ' + esc(likes.slice(0, 2).join(", ")) + "</span>" : "") + "</div>" +
       (br ? '<div class="small" style="color:var(--bad);font-weight:650">⚠ ' + esc(br) + " — tap swap</div>" : "") +
       (s.main ? "" : pickSidesBtn("plan", d, s.k, r.id)) +
       '</div><div class="acts no-print">' +
@@ -357,13 +384,9 @@
       "</div></div>";
   }
   function optionsCard() {
-    var cu = S("cuisines") || [];
-    var other = ["car", "med", "afr", "asi", "lat", "oth"];
-    return '<div class="card"><h2>Menu options</h2><div class="form-grid">' +
-      '<div class="field"><span>Mix: <b id="ratioLbl">' + S("ratio") + "% Jamaican · " + (100 - S("ratio")) + '% other healthy cuisines</b></span><input type="range" min="0" max="100" step="5" value="' + S("ratio") + '" data-set="ratio"></div>' +
+    return '<div class="card"><h2>Menu options</h2><p class="help">🇯🇲 Every menu uses Jamaican dishes only.</p><div class="form-grid">' +
       '<div class="field"><span>Servings per meal</span><div class="stepper"><button class="btn small" data-act="serv" data-v="-1" aria-label="Fewer servings">−</button><b>' + S("servings") + '</b><button class="btn small" data-act="serv" data-v="1" aria-label="More servings">+</button><span class="help">for the shopping list and recipes</span></div></div>' +
       "</div>" +
-      '<div class="field"><span>Other cuisines to include</span><div class="chips">' + other.map(function (c) { return '<button class="chip' + (cu.indexOf(c) >= 0 ? " on" : "") + '" data-act="cuisine" data-c="' + c + '">' + esc(D.CUISINES[c]) + "</button>"; }).join("") + "</div></div>" +
       '<label class="switch"><input type="checkbox" data-set="useLikes"' + (S("useLikes") ? " checked" : "") + '><span><b>Use foods I like first</b><small>Callaloo, saltfish, snapper, breadfruit and the rest of ' + '<a href="#/foods">My foods</a> show up more often.</small></span></label>' +
       '<label class="switch"><input type="checkbox" data-set="clean"' + (S("clean") ? " checked" : "") + '><span><b>Biblically clean</b><small>Fish with fins and scales only — no shellfish, no catfish (Leviticus 11:9–12). Pork is never included either way.</small></span></label>' +
       '<label class="switch"><input type="checkbox" data-set="sabbath"' + (S("sabbath") ? " checked" : "") + '><span><b>Sabbath-friendly</b><small>Friday dinner and all of Saturday use dishes you can cook Friday before sunset.</small></span></label>' +
@@ -431,13 +454,11 @@
     { k: "s", label: "Snacks & baked", ico: "🍌", test: function (r) { return r.m.indexOf("s") >= 0 && r.tags.indexOf("drink") < 0; } },
     { k: "drink", label: "Drinks", ico: "🍹", test: function (r) { return r.tags.indexOf("drink") >= 0; } }
   ];
-  function isSoup(r) { return /soup|fish tea|callaloo \(no crab\)/i.test(r.n); }
+  function isSoup(r) { return /soup|fish tea/i.test(r.n); }
   function allFiltered() {
     var q = ui.allQ.trim().toLowerCase();
     return RECIPES.filter(function (r) {
-      if (ui.allCu === "jm" && r.c !== "jm") return false;
-      if (ui.allCu === "other" && r.c === "jm") return false;
-      if (q && recipeText(r).indexOf(q) < 0 && r.n.toLowerCase().indexOf(q) < 0 && D.CUISINES[r.c].toLowerCase().indexOf(q) < 0) return false;
+      if (q && recipeText(r).indexOf(q) < 0 && r.n.toLowerCase().indexOf(q) < 0 && cuLabel(r).toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
   }
@@ -450,7 +471,7 @@
       var open = q ? true : ui.allOpen[g.k] !== false;
       h += '<details class="allgrp" data-grp="' + g.k + '"' + (open ? " open" : "") + '><summary><span>' + g.ico + " " + esc(g.label) + '</span><span class="pill">' + ok.length + "</span>" + (hid.length ? '<span class="pill">' + hid.length + " hidden</span>" : "") + "</summary>" +
         (ok.length ? '<ul class="alllist">' + ok.map(function (r) {
-          return '<li><a href="#/recipe/' + r.id + '"><span class="e">' + r.e + '</span><span class="t"><b>' + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b><small>' + esc(D.CUISINES[r.c]) + " · " + r.t + " min</small></span>" + '<span class="tags">' + tagPills(r, 2) + "</span></a></li>";
+          return '<li><a href="#/recipe/' + r.id + '"><span class="e">' + r.e + '</span><span class="t"><b>' + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b><small>' + esc(cuLabel(r)) + " · " + r.t + " min</small></span>" + '<span class="tags">' + tagPills(r, 2) + "</span></a></li>";
         }).join("") + "</ul>" : '<p class="muted" style="padding:0 14px">No recipes match.</p>') +
         (hid.length && ui.allShowHidden ? '<ul class="alllist hidden-items">' + hid.map(function (r) { return '<li><a href="#/recipe/' + r.id + '"><span class="e">' + r.e + '</span><span class="t"><b>' + esc(r.n) + '</b><small>Hidden: ' + esc(blockReason(r)) + "</small></span></a></li>"; }).join("") + "</ul>" : "") +
         "</details>";
@@ -459,7 +480,7 @@
   }
   function viewAll() {
     var tab = ui.allTab;
-    var head = '<div class="page-head"><p class="kicker">Everything in one place</p><h1>All menus</h1><p class="lead">Every recipe in the app grouped by meal, plus all your saved and planned menus.</p></div>' +
+    var head = '<div class="page-head"><p class="kicker">Everything in one place</p><h1>All menus</h1><p class="lead">Every Jamaican recipe in the app grouped by meal, plus all your saved and planned menus.</p></div>' +
       '<div class="chips no-print" role="tablist" style="margin-bottom:12px"><button class="chip' + (tab === "recipes" ? " on" : "") + '" data-act="allTab" data-t="recipes" role="tab">📖 All recipes (' + RECIPES.filter(function (r) { return !blockReason(r); }).length + ')</button><button class="chip' + (tab === "saved" ? " on" : "") + '" data-act="allTab" data-t="saved" role="tab">🗂️ Saved & planned (' + state.savedMenus.length + ")</button></div>";
     if (tab === "saved") {
       var g = menuGroups();
@@ -469,13 +490,12 @@
         sec("📅 Upcoming", g.up) + sec("🗂️ No date", g.none) + sec("🕘 Past", g.past) + disclaimer();
     }
     return head + '<div class="card no-print"><div class="field"><span>Search all recipes</span><input type="search" id="allSearch" value="' + esc(ui.allQ) + '" placeholder="Try chicken, saltfish, soup…"></div>' +
-      '<div class="row between"><div class="chips">' + [["", "All cuisines"], ["jm", "🇯🇲 Jamaican"], ["other", "Other cuisines"]].map(function (c) { return '<button class="chip' + (ui.allCu === c[0] ? " on" : "") + '" data-act="allCu" data-c="' + c[0] + '">' + c[1] + "</button>"; }).join("") + '</div>' +
+      '<div class="row between"><div class="chips"><span class="pill cuisine">🇯🇲 Jamaican dishes only</span></div>' +
       '<div class="row"><button class="btn small" data-act="allExpand">Expand all</button><button class="btn small" data-act="allCollapse">Collapse all</button><label class="row small"><input type="checkbox" data-act2="allShowHidden"' + (ui.allShowHidden ? " checked" : "") + "> Show hidden</label></div></div></div>" +
       '<div id="allList" class="mt">' + allListHtml() + "</div>" + disclaimer();
   }
   function viewRecipes() {
     var list = RECIPES.filter(function (r) {
-      if (ui.cuisine && r.c !== ui.cuisine) return false;
       if (ui.meal && r.m.indexOf(ui.meal) < 0) return false;
       if (ui.tag === "fav" && !isFav(r.id)) return false;
       if (ui.tag === "likes" && !likeHits(r).length) return false;
@@ -485,9 +505,8 @@
     });
     var shown = list.filter(function (r) { return !blockReason(r); }), hidden = list.length - shown.length;
     var tagChips = [["", "All"], ["likes", "💚 My foods"], ["fav", "★ Favorites"], ["bp", "BP-friendly"], ["fish", "Fish"], ["plant", "Plant-based"], ["fiber", "High fiber"], ["prep", "Sabbath prep-ahead"]];
-    return '<div class="page-head"><p class="kicker">' + RECIPES.length + ' recipes · mostly Jamaican</p><h1>Recipe library</h1><p class="lead">Every recipe is pork-free, with a tip for cutting the salt. Tap one to see ingredients you can check off as you cook.</p></div>' +
+    return '<div class="page-head"><p class="kicker">' + RECIPES.length + ' recipes · Jamaican only</p><h1>Recipe library</h1><p class="lead">Jamaican dishes only. Every recipe is pork-free, with a tip for cutting the salt. Tap one to see ingredients you can check off as you cook.</p></div>' +
       '<div class="card no-print"><div class="form-grid"><div class="field"><span>Search</span><input type="search" id="recipeSearch" value="' + esc(ui.q) + '" placeholder="Try callaloo, snapper, breadfruit…"></div>' +
-      '<div class="field"><span>Cuisine</span><select data-ui="cuisine"><option value="">All cuisines</option>' + Object.keys(D.CUISINES).map(function (c) { return '<option value="' + c + '"' + (ui.cuisine === c ? " selected" : "") + ">" + esc(D.CUISINES[c]) + "</option>"; }).join("") + "</select></div>" +
       '<div class="field"><span>Meal</span><select data-ui="meal"><option value="">Any meal</option>' + ["b", "l", "d", "side", "s"].map(function (k) { return '<option value="' + k + '"' + (ui.meal === k ? " selected" : "") + ">" + esc(k === "side" ? "Sides" : MEAL_LABEL[k]) + "</option>"; }).join("") + "</select></div></div>" +
       '<div class="chips">' + tagChips.map(function (t) { return '<button class="chip' + (ui.tag === t[0] ? " on" : "") + '" data-act="rtag" data-t="' + t[0] + '">' + esc(t[1]) + "</button>"; }).join("") + "</div></div>" +
       '<div id="recipeList">' + recipeGrid(shown, hidden) + "</div>" + disclaimer();
@@ -495,7 +514,7 @@
   function recipeGrid(shown, hidden) {
     return '<p class="help mt">' + shown.length + " showing" + (hidden ? " · " + hidden + " hidden by your Biblically clean filter, never-eat list or menu exclusions" : "") + "</p>" +
       '<div class="recipes">' + shown.map(function (r) {
-        return '<a class="rc" href="#/recipe/' + r.id + '"><div class="top"><span class="e">' + r.e + "</span><b>" + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b></div><div class="meta">' + esc(D.CUISINES[r.c]) + " · " + r.t + " min · serves " + r.sv + '</div><div class="tags">' + tagPills(r, 4) + "</div></a>";
+        return '<a class="rc" href="#/recipe/' + r.id + '"><div class="top"><span class="e">' + r.e + "</span><b>" + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b></div><div class="meta">' + esc(cuLabel(r)) + " · " + r.t + " min · serves " + r.sv + '</div><div class="tags">' + tagPills(r, 4) + "</div></a>";
       }).join("") + "</div>";
   }
   function sideChip(mainId, x) {
@@ -526,7 +545,7 @@
     var ings = r.ing.map(parseIng);
     var anyChecked = ings.some(function (x, i) { return getFlag("cookChecks", r.id, String(i)); });
     return '<div class="row between no-print" style="margin-bottom:10px"><a class="btn small" href="#/recipes">← Recipes</a><div class="row"><button class="btn small' + (isFav(r.id) ? " on" : "") + '" data-act="fav" data-id="' + r.id + '">' + (isFav(r.id) ? "★ Favorite" : "☆ Add to favorites") + '</button><button class="btn small" data-act="doPrint">🖨 Print</button></div></div>' +
-      '<div class="card"><div class="rhead"><div class="big">' + r.e + '</div><div><p class="kicker">' + esc(D.CUISINES[r.c]) + " · " + r.m.map(function (m) { return MEAL_LABEL[m] || m; }).join(", ") + "</p><h1>" + esc(r.n) + '</h1><div class="tags">' + tagPills(r) + "</div></div></div>" +
+      '<div class="card"><div class="rhead"><div class="big">' + r.e + '</div><div><p class="kicker">' + esc(cuLabel(r)) + " · " + r.m.map(function (m) { return MEAL_LABEL[m] || m; }).join(", ") + "</p><h1>" + esc(r.n) + '</h1><div class="tags">' + tagPills(r) + "</div></div></div>" +
       '<div class="facts"><span>⏱ <b>' + r.t + ' min</b></span><span>🍽 Recipe makes <b>' + r.sv + '</b></span><span class="no-print stepper">Cook for <button class="btn small" data-act="rserv" data-id="' + r.id + '" data-v="-1" aria-label="Fewer">−</button><b>' + serv + '</b><button class="btn small" data-act="rserv" data-id="' + r.id + '" data-v="1" aria-label="More">+</button> servings</span>' + (likes.length ? "<span>💚 Has " + esc(likes.map(function (f) { return f.name.replace(/\s*\(.*\)/, ""); }).join(", ")) + "</span>" : "") + "</div>" +
       (br ? '<div class="note warn">⚠ ' + esc(br) + ". The menu maker will not pick this recipe.</div>" : "") +
       "</div>" + sidesCard(r) +
@@ -692,7 +711,7 @@
     var grp = function (title, list) {
       return '<h2 class="mt" style="margin-top:20px">' + title + ' <span class="pill">' + list.length + '</span></h2><div class="recipes">' + list.map(function (r) {
         var gw = goesWith(r.id).filter(function (x) { return !blockReason(x); });
-        return '<a class="rc" href="#/recipe/' + r.id + '"><div class="top"><span class="e">' + r.e + "</span><b>" + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b></div><div class="meta">' + esc(D.CUISINES[r.c]) + " · " + r.t + " min · serves " + r.sv + '</div><div class="tags">' + tagPills(r, 3) + "</div>" +
+        return '<a class="rc" href="#/recipe/' + r.id + '"><div class="top"><span class="e">' + r.e + "</span><b>" + esc(r.n) + (isFav(r.id) ? " ★" : "") + '</b></div><div class="meta">' + esc(cuLabel(r)) + " · " + r.t + " min · serves " + r.sv + '</div><div class="tags">' + tagPills(r, 3) + "</div>" +
           (gw.length ? '<div class="small muted" style="margin-top:6px">Goes with: ' + esc(gw.slice(0, 3).map(function (x) { return x.n.replace(/\s*\(.*?\)/g, ""); }).join(", ")) + (gw.length > 3 ? " +" + (gw.length - 3) + " more" : "") + "</div>" : "") + "</a>";
       }).join("") + "</div>";
     };
@@ -752,7 +771,7 @@
     var ids = menuRecipeIds(m), bad = ids.filter(function (id) { var r = recipeById(id); return !r || blockReason(r); }).length;
     var first = ids.slice(0, 3).map(function (id) { var r = recipeById(id); return r ? r.e + " " + esc(r.n) : ""; }).filter(Boolean).join(" · ");
     return '<div class="card menu-card"><div class="row between"><div style="min-width:0;flex:1"><p class="kicker">' + esc(menuDateLabel(m)) + " · " + (m.kind === "week" ? "Week" : "Day") + '</p><h2 style="margin:2px 0 4px"><a href="#/saved/' + m.id + '" style="color:inherit;text-decoration:none">' + esc(m.name) + "</a></h2>" +
-      '<p class="small muted" style="margin:0">' + mainCount(m) + " of " + dayCount(m) * MAINS.length + " meals picked" + (sideCount(m) ? " · " + sideCount(m) + " sides" : "") + (bad ? ' · <span style="color:var(--bad)">⚠ ' + bad + " need a swap</span>" : "") + "</p>" +
+      '<p class="small muted" style="margin:0">' + mainCount(m) + " of " + dayCount(m) * MAINS.length + " meals picked" + (sideCount(m) ? " · " + sideCount(m) + " sides" : "") + (bad ? ' · <span style="color:var(--bad)">⚠ ' + bad + " need a swap</span>" : "") + (m.changes && m.changes.length ? ' · <span class="pill cuisine">🇯🇲 updated</span>' : "") + "</p>" +
       (first ? '<p class="small" style="margin:4px 0 0">' + first + (ids.length > 3 ? " …" : "") + "</p>" : "") + (m.notes ? '<p class="help" style="margin:4px 0 0">📝 ' + esc(m.notes.length > 120 ? m.notes.slice(0, 120) + "…" : m.notes) + "</p>" : "") + "</div></div>" +
       '<div class="row mt no-print"><a class="btn small primary" href="#/saved/' + m.id + '">Open / edit</a><button class="btn small gold" data-act="useMenu" data-id="' + m.id + '">✔ Use this menu</button><a class="btn small" href="#/saved/' + m.id + '/shop">🛒 Shopping list</a><a class="btn small" href="#/saved/' + m.id + '/print">🖨 Print</a><button class="btn small" data-act="dupMenu" data-id="' + m.id + '">📑 Duplicate</button><button class="btn small danger" data-act="delMenu" data-id="' + m.id + '">Delete</button></div></div>';
   }
@@ -778,11 +797,19 @@
       list = list.filter(function (r) { return sugIds.indexOf(r.id) < 0; });
       return h + '<optgroup label="Other sides">' + list.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + "</option>"; }).join("") + "</optgroup>";
     }
-    Object.keys(D.CUISINES).forEach(function (c) {
-      var g = list.filter(function (r) { return r.c === c; }); if (!g.length) return;
-      h += '<optgroup label="' + esc(D.CUISINES[c]) + '">' + g.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + "</option>"; }).join("") + "</optgroup>";
+    [["side", "Sides"], ["main", "Jamaican dishes"]].forEach(function (c) {
+      var g = list.filter(function (r) { return c[0] === "main" || r.m.indexOf("side") >= 0; }); if (c[0] === "side" || !g.length) return;
+      h += '<optgroup label="' + esc(c[1]) + '">' + g.map(function (r) { return '<option value="' + r.id + '"' + (r.id === cur ? " selected" : "") + ">" + r.e + " " + esc(r.n) + "</option>"; }).join("") + "</optgroup>";
     });
     return h;
+  }
+  function slotName(key) { var p = key.split("-"), d = +p[0], s = slotDef(p.slice(1).join("-")); return (s ? s.label : "Meal") + (+d > 0 || p[0] !== "0" ? " (day " + (d + 1) + ")" : ""); }
+  function changesNote(m) {
+    if (!m.changes || !m.changes.length) return "";
+    var missing = m.changes.some(function (c) { return !c.to; });
+    return '<div class="note gold mt"><b>🇯🇲 Updated for Jamaican-only:</b> some recipes in this menu are no longer in the app.<ul style="margin:6px 0 6px 18px">' +
+      m.changes.map(function (c) { return "<li>" + esc(slotName(c.slot)) + ": " + esc(c.from) + (c.to ? " → <b>" + esc(c.to) + "</b>" : ' — <b>removed</b>, pick a replacement below') + "</li>"; }).join("") + "</ul>" +
+      '<div class="row">' + (missing ? '<button class="btn small" data-act="swapRemoved" data-id="' + m.id + '">⇄ Swap in Jamaican dishes</button>' : "") + '<button class="btn small" data-act="clearChanges" data-id="' + m.id + '">Got it</button></div></div>';
   }
   function viewMenuEditor(m) {
     var days = [];
@@ -794,6 +821,7 @@
       '<div class="field"><span>Notes</span><textarea data-mf="notes" data-id="' + m.id + '" maxlength="1000" placeholder="Anything to remember for this menu">' + esc(m.notes || "") + "</textarea></div>" +
       '<div class="row"><button class="btn small" data-act="fillMenu" data-id="' + m.id + '">✨ Fill empty meals with suggestions</button><button class="btn small" data-act="clearMenu" data-id="' + m.id + '">Clear all meals</button></div>' +
       '<p class="help">Recipe choices follow your never-eat list' + (S("clean") ? " and the Biblically clean filter" : "") + '. Changes save as you go.</p></div>' +
+      changesNote(m) +
       '<div class="week mt">' + days.map(function (d) {
         var date = menuDayDate(m, d);
         var label = date ? dayName(date) + " · " + dateLabel(date) : (m.kind === "week" ? "Day " + (d + 1) : "Meals");
@@ -857,7 +885,7 @@
       '<div class="card"><h2>🥗 How the recipes cut salt</h2><ul><li>No bouillon cubes, soup-mix packets or bottled jerk sauce — fresh thyme, scallion, garlic, ginger, pimento and Scotch bonnet carry the flavor.</li><li>No-salt-added canned beans and tomatoes.</li><li>Steaming, baking and air-frying instead of deep-frying.</li><li>No pig tail or salt beef in red pea soup or stew peas.</li><li>Every recipe has its own sodium tip and a BP-friendly tag when it fits.</li></ul></div>' + disclaimer();
   }
   function viewAbout() {
-    return '<div class="page-head"><h1>About Jamaican Menus</h1></div><div class="card"><p>Healthy Jamaican menus built around the foods you love — callaloo, saltfish, snapper, parrot fish, sprat, okra, cabbage, collard greens, ackee and breadfruit — plus healthy dishes from other cuisines.</p><ul><li>No recipe uses pork, pork products, tripe or cow foot.</li><li>' + RECIPES.length + " recipes, " + RECIPES.filter(function (r) { return r.c === "jm"; }).length + ' of them Jamaican.</li><li>Saved and planned menus are included in Sync and in the backup file.</li><li>Your lists and menus are saved only on this device unless you turn on <a href="#/sync">Sync</a>, which keeps a private copy in your own GitHub account.</li><li>Works offline once it has loaded.</li></ul></div>' +
+    return '<div class="page-head"><h1>About Jamaican Menus</h1></div><div class="card"><p>Healthy Jamaican menus built around the foods you love — callaloo, saltfish, snapper, parrot fish, sprat, okra, cabbage, collard greens, ackee and breadfruit. Jamaican dishes only.</p><ul><li>No recipe uses pork, pork products, tripe or cow foot.</li><li>' + RECIPES.length + " recipes, all Jamaican. A few are labeled: Jamaican-Chinese style (" + RECIPES.filter(function (r) { return r.lab === "Jamaican-Chinese style"; }).map(function (r) { return r.n.replace(/\s*\(.*?\)/g, ""); }).join(", ") + "), Jamaican-style sides, and Tart Cherry Glazed Chicken, kept because you asked for it.</li>" + '<li>Saved and planned menus are included in Sync and in the backup file.</li><li>Your lists and menus are saved only on this device unless you turn on <a href="#/sync">Sync</a>, which keeps a private copy in your own GitHub account.</li><li>Works offline once it has loaded.</li></ul></div>' +
       '<div class="card"><h2>Backup</h2><div class="row"><button class="btn" data-act="export">⬇ Export backup</button><label class="btn">⬆ Import backup<input type="file" id="importFile" accept="application/json" hidden></label></div></div>' + disclaimer();
   }
   function viewSync() {
@@ -920,12 +948,10 @@
     else if (a === "doPrint") { window.print(); }
     else if (a === "serv") { setS("servings", Math.max(1, Math.min(12, S("servings") + +b.dataset.v))); rerender(); }
     else if (a === "rserv") { var cur = ui.servFor === b.dataset.id && ui.serv ? ui.serv : S("servings"); ui.servFor = b.dataset.id; ui.serv = Math.max(1, Math.min(12, cur + +b.dataset.v)); rerender(); }
-    else if (a === "cuisine") { var cu = (S("cuisines") || []).slice(), i = cu.indexOf(b.dataset.c); if (i >= 0) cu.splice(i, 1); else cu.push(b.dataset.c); setS("cuisines", cu); rerender(); }
     else if (a === "rtag") { ui.tag = b.dataset.t; rerender(); }
     else if (a === "fav") { var id = "fav-" + b.dataset.id; if (find("favorites", id)) { removeItem("favorites", id); toast("Removed from favorites"); } else { upsert("favorites", { id: id, recipeId: b.dataset.id }); toast("Added to favorites"); } save(); rerender(); }
     else if (a === "clearCook") { var r = recipeById(b.dataset.id); r.ing.forEach(function (x, i) { if (getFlag("cookChecks", r.id, String(i))) setFlag("cookChecks", r.id, String(i), false); }); save(); rerender(); }
     else if (a === "allTab") { ui.allTab = b.dataset.t; rerender(); }
-    else if (a === "allCu") { ui.allCu = b.dataset.c; rerender(); }
     else if (a === "allExpand" || a === "allCollapse") { ALL_GROUPS.forEach(function (g) { ui.allOpen[g.k] = a === "allExpand"; }); if (ui.allQ && a === "allCollapse") { ui.allQ = ""; } rerender(); }
     else if (a === "saveLaterDay") saveLaterDialog("day");
     else if (a === "saveLaterWeek") saveLaterDialog("week");
@@ -935,6 +961,21 @@
     else if (a === "dupMenu") { var dm = find("savedMenus", b.dataset.id); if (dm) { var cp = JSON.parse(JSON.stringify(dm)); cp.id = "menu-" + uid(); cp.name = dm.name + " (copy)"; delete cp.createdAt; upsert("savedMenus", cp); save(); toast("Duplicated"); location.hash = "#/saved/" + cp.id; } }
     else if (a === "delMenu") { var xm = find("savedMenus", b.dataset.id); if (xm && confirm("Delete the saved menu “" + xm.name + "”? This can't be undone.")) { removeItem("savedMenus", xm.id); save(); toast("Deleted"); if (routeParts()[1]) location.hash = "#/saved"; else rerender(); } }
     else if (a === "fillMenu") { var fm = find("savedMenus", b.dataset.id); if (fm) { suggestFill(fm, true); upsert("savedMenus", fm); save(); toast("Filled empty meals"); rerender(); } }
+    else if (a === "swapRemoved") {
+      var mr = find("savedMenus", b.dataset.id);
+      if (mr) {
+        mr.slots = mr.slots || {}; var mu = {}; Object.keys(mr.slots).forEach(function (x) { mu[mr.slots[x]] = (mu[mr.slots[x]] || 0) + 1; });
+        (mr.changes || []).forEach(function (c) {
+          if (c.to || mr.slots[c.slot]) return;
+          var pp = c.slot.split("-"), dd = +pp[0], kk = pp.slice(1).join("-"), mainK = mainOf(kk), date = menuDayDate(mr, dd), dayIds = SLOTS.map(function (x) { return mr.slots[dd + "-" + x.k]; }).filter(Boolean), r = null;
+          if (mainK) { var acc = menuAcc(mr.slots, dd), keys = SIDE_OF[mainK], other = acc.get(keys[keys.indexOf(kk) === 0 ? 1 : 0]); r = pickSide(kk, date, mu, null, dayIds, acc.get(mainK), other); if (!r) r = candidates(kk, date).filter(function (x) { return dayIds.indexOf(x.id) < 0; })[0] || null; }
+          else r = pickRecipe(kk, date, mu, null, dayIds);
+          if (r) { mr.slots[c.slot] = r.id; c.to = r.n; }
+        });
+        upsert("savedMenus", mr); save(); toast("Swapped in Jamaican dishes"); rerender();
+      }
+    }
+    else if (a === "clearChanges") { var mc = find("savedMenus", b.dataset.id); if (mc) { delete mc.changes; upsert("savedMenus", mc); save(); rerender(); } }
     else if (a === "clearMenu") { var cm = find("savedMenus", b.dataset.id); if (cm && confirm("Clear every meal in this menu?")) { cm.slots = {}; upsert("savedMenus", cm); save(); rerender(); } }
     else if (a === "clearDate") { var cd = find("savedMenus", b.dataset.id); if (cd) { cd.date = ""; upsert("savedMenus", cd); save(); rerender(); } }
     else if (a === "clearShop") { var ws = shopSource().key; shoppingItems().forEach(function (x) { if (getFlag("shopChecks", ws, x.key)) setFlag("shopChecks", ws, x.key, false); }); save(); rerender(); }
@@ -973,7 +1014,6 @@
     var t = e.target;
     if (t.id === "allSearch") { ui.allQ = t.value; document.getElementById("allList").innerHTML = allListHtml(); return; }
     if (t.id === "recipeSearch") { ui.q = t.value; var tmp = document.createElement("div"); var html = viewRecipes(); tmp.innerHTML = html; document.getElementById("recipeList").innerHTML = tmp.querySelector("#recipeList").innerHTML; }
-    if (t.type === "range" && t.dataset.set === "ratio") { var l = document.getElementById("ratioLbl"); if (l) l.textContent = t.value + "% Jamaican · " + (100 - t.value) + "% other healthy cuisines"; }
   }
   function onModalSubmit(e) {
     var f = e.target.closest("[data-modal]"); if (!f) return; e.preventDefault();
@@ -1013,6 +1053,7 @@
     MenuSync.FLAG_KEYS.forEach(function (k) { state[k] = m[k] || {}; });
     state.settings = m.settings || {}; state.settingsTimes = m.settingsTimes || {};
     state.tombstones = m.tombstones || MenuSync.emptyTombs(); state.version = 1; applyTheme();
+    if (fixRemoved()) persist();
   }
   function isTyping() { var a = document.activeElement; return a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT") && a.type !== "checkbox" && a.type !== "range"; }
   function runSync(reason) {
@@ -1078,6 +1119,7 @@
 
   /* ---------- boot ---------- */
   seed(); migrate(); applyTheme();
+  var fixedCount = fixRemoved(); if (fixedCount) { save(); setTimeout(function () { toast("Updated " + fixedCount + " meal" + (fixedCount > 1 ? "s" : "") + " to Jamaican dishes"); }, 600); }
   document.getElementById("themeBtn").addEventListener("click", function () { setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); });
   document.getElementById("menuBtn").addEventListener("click", function () { if (document.getElementById("rail").classList.contains("open")) closeMenu(); else openMenu(); });
   document.getElementById("railBackdrop").addEventListener("click", closeMenu);
